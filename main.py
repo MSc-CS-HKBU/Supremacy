@@ -6,6 +6,7 @@ import pandas as pd
 import numpy as np
 import os
 import csv
+import uvicorn
 from sklearn.cluster import estimate_bandwidth
 from surprise import Reader
 from surprise.model_selection import train_test_split
@@ -137,3 +138,6 @@ def get_similar_items(iid, n=12):
     neighbors_iid = [algo.trainset.to_raw_iid(x) for x in neighbors]
     print(neighbors_iid)
     return neighbors_iid
+
+if __name__ == '__main__':
+    uvicorn.run(app, host='0.0.0.0', port=8000)
