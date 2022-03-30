@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Movie Recommender System</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+    <style>
+        body {
+            margin: 0;
+        }
+    </style>
+</head>
+<div id="app">
+    <el-menu mode="horizontal" default-active="1" background-color="#545c64"
+             text-color="#fff"
+             active-text-color="#ffd04b">
+        <el-menu-item index="1">Movie Recommender System</el-menu-item>
+    </el-menu>
+    <el-container>
+        <el-main>
+            <h2>Recommended</h2>
+
+            <el-row :gutter="20">
+                <el-col :span="4" v-for="o in recommended" :key="o.movie_id" :offset="0">
+                    <el-card :body-style="{ padding: '0px' }"
+                             style="margin-top:15px;height:400px;overflow:auto;position:relative">
+                        <el-image
+                                style="width: 100%;height:240px;"
+                                :src="o.poster_url"
+                                fit="cover"></el-image>
+                        <h4 style="padding:0 10px;margin:0">{{o.movie_title}}</h4>
+                        <h6 style="padding:0 10px;margin:0.5em">{{ o.release_date }}</h6>
+                        <el-button type="danger" plain style="position:absolute;bottom:10px;right:10px" @click="liked_btn(o)">
+                            <i class="el-icon-medal el-icon--left"></i>Like
+                        </el-button>
+                    </el-card>
+                </el-col>
+            </el-row>
+            <h2>Liked with Similar Items</h2>
+
+            <el-row :gutter="20">
+                <el-col :span="4" v-for="o in liked" :key="o.movie_id" :offset="0">
+                    <el-card :body-style="{ padding: '0px' }"
+                             style="margin-top:15px;height:400px;overflow:auto;position:relative">
+                        <el-image
+                                style="width: 100%;height:240px;"
+                                :src="o.poster_url"
+                                fit="cover"></el-image>
+                        <h4 style="padding:0 10px;margin:0">{{o.movie_title}}</h4>
+                        <h6 style="padding:0 10px;margin:0.5em">{{ o.release_date }}</h6>
+                    </el-card>
+                </el-col>
+            </el-row>
+            <!--  Dialog0-->
+            <el-dialog
+                    title="Please choose any genre you're interested in."
+                    :visible="dialog0"
+                    width="60%"
+                    :show-close="false"
+            >
+                <span>Multiple answers are possible.</span>
+                <el-checkbox-group v-model="selected_genre" style="margin-top:20px">
+                    <el-checkbox :label=item border v-for="(item, index) in genre" :key="index"
+                                 style="margin-top:20px; margin-left: 0px"></el-checkbox>
+                </el-checkbox-group>
+                <span slot="footer" class="dialog-footer">
+                    <el-button type="danger" @click="step1" plain :disabled="step1_show"
+                               style="min-width:128px">Next</el-button>
+                </span>
+            </el-dialog>
+            <!--  Dialog1-->
+            <el-dialog
+                    title="Please rate the following movies."
+                    :visible="dialog1"
+                    width="80%"
+                    :show-close="false"
+            >
+                <el-row :gutter="20">
+                    <el-col :span="4" v-for="o in movies" :key="o.movie_id" :offset="0">
+                        <el-card :body-style="{ padding: '0px' }" style="margin-top:15px;height:368px;overflow:auto">
+                            <el-image
+                                    style="width: 100%;height:240px;"
+                                    :src="o.poster_url"
+                                    fit="cover"></el-image>
+                            <h4 style="padding:0 10px;margin:0">{{o.movie_title}}</h4>
+                            <el-rate v-model="o.score" style="padding:10px 10px;"></el-rate>
+                        </el-card>
+                    </el-col>
+                </el-row>
+                <span slot="footer" class="dialog-footer">
+                    <el-button type="danger" @click="step2" plain :disabled="step2_show"
+                               style="width:128px">Next</el-button>
+                </span>
+            </el-dialog>
+
+        </el-main>
+
+    </el-container>
+</div>
+<body>
+<!-- import Vue before Element -->
+<script src="https://unpkg.com/vue@2.6.14/dist/vue.js"></script>
+<!-- import JavaScript -->
+<script src="https://unpkg.com/element-ui/lib/index.js"></script>
+<script src="https://unpkg.com/element-ui/lib/umd/locale/en.js"></script>
+<script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+<script>
+    ELEMENT.locale(ELEMENT.lang.en)
+    new Vue({
+        el: '#app',
+        data: function () {
+            return {
+                baseurl: 'http://127.0.0.1:8000',
+                genre: [],
+                selected_genre: [],
+                movies: [],
+                recommended: [],
+                liked: [],
+                dialog0: true,
+                dialog1: false,
+                iconClasses: ['icon-rate-face-1', 'icon-rate-face-2', 'icon-rate-face-3'],
+                checkboxGroup1: [],
+                value: 2
+            }
+        },
+        methods: {
+            step1: function () {
+                axios.post(this.baseurl + "/api/movies", this.selected_genre).then((res) => {
+                    //console.log(res);
+                    this.movies = res.data;
+                    console.log(typeof this.movies);
+                    if (this.movies.length === 18) {
+                        this.dialog0 = false;
+                        this.dialog1 = true;
+                    } else {
+                        this.$message({
+                            showClose: true,
+                            message: 'Error'
+                        });
+                    }
+                })
+            },
+            step2: function () {
+                //this.dialog1 = false;
+                //console.log(this.movies);
+                axios.post(this.baseurl + "/api/recommend", this.movies).then((res) => {
+                    // console.log(res.data)
+                    this.recommended = res.data;
+                    if (this.recommended.length > 0) {
+                        this.dialog1 = false;
+                    } else {
+                        this.$message({
+                            showClose: true,
+                            message: 'Error'
+                        });
+                    }
+                });
+            },
+            liked_btn:function(movie){
+                let that = this;
+                this.liked.push(movie);
+                this.recommended.splice(this.recommended.findIndex(item => item.movie_id === movie.movie_id), 1);
+                axios.get(this.baseurl+'/api/add_recommend/'+movie.movie_id).then((res) =>{
+                    console.log(res.data);
+                    that.recommended.push.apply(that.recommended,res.data);
+                    that.liked.push.apply(that.liked,res.data);
+                })
+            }
+        },
+        mounted: function () {
+            axios.get(this.baseurl + "/api/genre").then((res) => {
+                this.genre = res.data['genre'];
+            })
+        },
+        computed: {
+            step1_show: function () {
+                if (this.selected_genre.length > 0) {
+                    return false;
+                } else {
+                    return true;
+                }
+            },
+            step2_show: function () {
+                let scores = 0;
+                for (let i of this.movies) {
+                    if (i['score'] > 0) {
+                        scores++
+                    }
+                }
+                console.log(scores);
+                if (scores >= 1) {
+                    return false;
+                } else {
+                    return true
+                }
+            },
+        }
+    })
+</script>
+</body>
+</html>
