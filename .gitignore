@@ -1,3 +1,4 @@
 # Dependency directories
 venv/
 __pycache__/
+model
