@@ -141,13 +141,15 @@
                     });
                 },
                 liked_btn: function (movie) {
-                    let that = this;
+                    // let that = this;
+                    this.liked.splice(0, this.liked.length);
                     this.liked.push(movie);
                     this.recommended.splice(this.recommended.findIndex(item => item.movie_id === movie.movie_id), 1);
                     axios.get(this.baseurl + '/api/add_recommend/' + movie.movie_id).then((res) => {
                         console.log(res.data);
-                        that.recommended.push.apply(that.recommended, res.data);
-                        that.liked.push.apply(that.liked, res.data);
+                        // that.recommended.push.apply(that.recommended, res.data);
+                        // that.liked.push.apply(that.liked, res.data);
+                        this.liked.push.apply(this.liked, res.data);
                     })
                 }
             },

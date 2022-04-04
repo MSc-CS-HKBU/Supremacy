@@ -4,8 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import uvicorn
-import  json
-from utils import map_genre
+import json
 from recommender import get_recommend_items_by_svd, get_similar_items_by_svd
 
 app = FastAPI()
@@ -19,7 +18,7 @@ app.add_middleware(
 
 # =======================DATA=========================
 # original data
-ori_data = pd.read_csv("movie_info.csv")
+movie_info = pd.read_csv("movie_info.csv")
 
 """
 =================== Body =============================
@@ -54,9 +53,11 @@ def get_genre():
 @app.post("/api/movies")
 def get_movies(genre: list):
     print(genre)
-    query_str = " or ".join(map(map_genre, genre))
-    results = ori_data.query(query_str)
-    results.loc[:, 'score'] = None
+    query_str = " or ".join(map(lambda x: ''+x+'==1', genre))
+    results = movie_info.query(query_str)
+    # results.loc[:, 'score'] = None
+    res_temp = pd.DataFrame(results)
+    res_temp.loc[:, 'score'] = None
     results = results.sample(
         18).loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'score']]
     return json.loads(results.to_json(orient="records"))
@@ -72,10 +73,12 @@ def get_recommend(movies: List[Movie]):
     res = [int(i) for i in res]
     if len(res) > 12:
         res = res[:12]
-    print(res)
-    rec_movies = ori_data.loc[ori_data['movie_id'].isin(res)]
-    print(rec_movies)
-    rec_movies.loc[:, 'like'] = None
+    # print(res)
+    rec_movies = movie_info.loc[movie_info['movie_id'].isin(res)]
+    # print(rec_movies)
+    # rec_movies.loc[:, 'like'] = None
+    rec_temp = pd.DataFrame(rec_movies)
+    rec_temp.loc[:, 'like'] = None
     results = rec_movies.loc[:, [
         'movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
     return json.loads(results.to_json(orient="records"))
@@ -85,11 +88,14 @@ def get_recommend(movies: List[Movie]):
 async def add_recommend(item_id):
     res = get_similar_items_by_svd(str(item_id), n=5)
     res = [int(i) for i in res]
-    print(res)
-    rec_movies = ori_data.loc[ori_data['movie_id'].isin(res)]
-    print(rec_movies)
-    rec_movies.loc[:, 'like'] = None
-    results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
+    # print(res)
+    similar_movies = movie_info.loc[movie_info['movie_id'].isin(res)]
+    # print(rec_movies)
+    # rec_movies.loc[:, 'like'] = None
+    rec_temp = pd.DataFrame(similar_movies)
+    rec_temp.loc[:, 'like'] = None
+    results = similar_movies.loc[:, [
+        'movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
     return json.loads(results.to_json(orient="records"))
 
 if __name__ == '__main__':

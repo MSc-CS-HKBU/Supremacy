@@ -3,25 +3,19 @@ import os
 import numpy as np
 import pandas as pd
 from scipy import spatial
-from surprise import SVD, Reader, Dataset, dump
-from surprise.model_selection import GridSearchCV
+from surprise import KNNWithMeans, SVD, Reader, Dataset, dump
 
-
-n_factors_list = [10, 20, 30]
-n_epochs_list = [10, 20]
 
 def get_recommend_items_by_svd(new_user_ratings, n=12, uid=611):
     rec_iid_list = []
-    user_add(uid, new_user_ratings)
-    file_path = os.path.expanduser('new_ratings.csv')
-    reader = Reader(line_format='user item rating timestamp', sep='\t')
-    data = Dataset.load_from_file(file_path, reader=reader)
-    trainset = data.build_full_trainset()
-    algo = best_algo_by_svd(data)
+    trainset = user_add(uid, new_user_ratings)
+    item_rid_list = [trainset.to_raw_iid(inner_id) for inner_id in trainset.ir.keys()]
+    print(f'number of total items: {trainset.n_items}')
+    algo = SVD(n_factors=20, n_epochs=30, biased=False)     # optimal parameters from Jupyter Notebook
     algo.fit(trainset)
     dump.dump('./model', algo=algo, verbose=1)
     all_results = {}
-    for i in range(trainset.n_items):
+    for i in item_rid_list:
         uid = str(uid)
         iid = str(i)
         pred = algo.predict(uid, iid).est
@@ -35,14 +29,23 @@ def get_recommend_items_by_svd(new_user_ratings, n=12, uid=611):
 
 
 def get_similar_items_by_svd(iid, n=12):
-    algo = dump.load('./model')[1]
+    svd_algo = dump.load('./model')[1]
+    trainset = svd_algo.trainset
     # print(f'iis: {iid}, number of total items: {algo.trainset.n_items}')
-    # inner_id = algo.trainset.to_inner_iid(iid)
-    # neighbors = algo.get_neighbors(inner_id, k=n)
-    # neighbors_iid_list = [algo.trainset.to_raw_iid(x) for x in neighbors]
-    neighbors_iid_list = k_neighbors_item_based(algo.trainset, iid, n)
+    # Option 1: calculating k nearest neighbors by KNNWithMeans algorithm, we use it here.
+    knn_algo = KNNWithMeans(k=60, sim_options={     # optimal parameters from Jupyter Notebook
+        'name': 'cosine',
+        'user_based': False
+    })
+    knn_algo.fit(trainset)
+    inner_id = knn_algo.trainset.to_inner_iid(iid)
+    neighbors = knn_algo.get_neighbors(inner_id, k=n)
+    neighbors_iid_list = [knn_algo.trainset.to_raw_iid(x) for x in neighbors]
+    # Option 2: calculating k nearest neighbors by k_neighbors_item_based function, we don't use it because it executes too slowly.
+    # neighbors_iid_list = k_neighbors_item_based(knn_algo.trainset, iid, n)
     print("neighbors_iid", neighbors_iid_list)
     return neighbors_iid_list
+
 
 def user_add(uid, new_user_ratings):
     # simulate adding a new user into the original data file
@@ -54,21 +57,18 @@ def user_add(uid, new_user_ratings):
             if s > 0:
                 new_rating = [str(uid), str(i), int(s), '0']
                 wf.writerow(new_rating)
-
-def best_algo_by_svd(data):
-    svd_param_grid = {'n_factors': n_factors_list,
-                      'n_epochs': n_epochs_list, 'biased': [True]}
-    svd_gs = GridSearchCV(SVD, svd_param_grid, measures=['rmse'], cv=3)
-    svd_gs.fit(data)
-    svd_best_algo = svd_gs.best_estimator['rmse']
-    return svd_best_algo
+    file_path = os.path.expanduser('new_ratings.csv')
+    reader = Reader(line_format='user item rating timestamp', sep='\t')
+    data = Dataset.load_from_file(file_path, reader=reader)
+    trainset = data.build_full_trainset()
+    return trainset
 
 
-# Calculating simmilarity by Cosine Similarity
+# Calculating k nearest neighbors step by step 
 def k_neighbors_item_based(train_set, raw_iid, k):
-    
-    train_user_list = [u_id  for u_id in train_set.ur.keys()]
-    train_item_list = [i_id  for i_id in train_set.ir.keys()]
+
+    train_user_list = [u_id for u_id in train_set.ur.keys()]
+    train_item_list = [i_id for i_id in train_set.ir.keys()]
 
     # initiate the matrix for storing the similarity values
     sim_item = np.empty((len(train_item_list), len(train_item_list)))
@@ -98,11 +98,15 @@ def k_neighbors_item_based(train_set, raw_iid, k):
             # B: construct rating vectors of common user for two items
             item1_rating_list, item2_rating_list = [], []
             for u in common_users:
-                item1_rating_list.append(item1_user_rating_dict[u] - u_rating_mean_dict[u])
-                item2_rating_list.append(item2_user_rating_dict[u] - u_rating_mean_dict[u])
+                item1_rating_list.append(
+                    item1_user_rating_dict[u] - u_rating_mean_dict[u])
+                item2_rating_list.append(
+                    item2_user_rating_dict[u] - u_rating_mean_dict[u])
             # C: calculate the similarities between two items, we use adjusted cosine similarity
             if len(common_users) > 0:
-                sim = 1 - spatial.distance.cosine(item1_rating_list,item2_rating_list)
+                sim = 1 - \
+                    spatial.distance.cosine(
+                        item1_rating_list, item2_rating_list)
             else:
                 sim = 0
             # D: store measured similarity into matrix
@@ -118,7 +122,8 @@ def k_neighbors_item_based(train_set, raw_iid, k):
         if i_inner_id != i:
             neighbors_sim_dict[i] = i_sim_item[i]
 
-    k_neighbors = sorted(neighbors_sim_dict.items(), reverse=True, key=lambda item: item[1])[:k]
+    k_neighbors = sorted(neighbors_sim_dict.items(),
+                         reverse=True, key=lambda item: item[1])[:k]
     k_neighbors_raw_iid = [train_set.to_raw_iid(i) for i, _ in k_neighbors]
 
     return k_neighbors_raw_iid
