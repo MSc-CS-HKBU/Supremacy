@@ -6,11 +6,12 @@ from scipy import spatial
 from surprise import KNNWithMeans, SVD, Reader, Dataset, dump
 
 
-def get_recommend_items_by_svd(new_user_ratings, n=12, uid=611):
+def get_recommend_items_by_svd(new_user_ratings, n=12):
     rec_iid_list = []
-    trainset = user_add(uid, new_user_ratings)
+    trainset = user_add(new_user_ratings)
+    uid = trainset.n_users
     item_rid_list = [trainset.to_raw_iid(inner_id) for inner_id in trainset.ir.keys()]
-    print(f'number of total items: {trainset.n_items}')
+    print(f'number of total users: {trainset.n_users}')
     algo = SVD(n_factors=20, n_epochs=30, biased=False)     # optimal parameters from Jupyter Notebook
     algo.fit(trainset)
     dump.dump('./model', algo=algo, verbose=1)
@@ -25,7 +26,7 @@ def get_recommend_items_by_svd(new_user_ratings, n=12, uid=611):
     for i in range(n):
         print(sorted_list[i])
         rec_iid_list.append(sorted_list[i][0])
-    return rec_iid_list
+    return uid, rec_iid_list
 
 
 def get_similar_items_by_svd(iid, n=12):
@@ -47,10 +48,13 @@ def get_similar_items_by_svd(iid, n=12):
     return neighbors_iid_list
 
 
-def user_add(uid, new_user_ratings):
+def user_add(new_user_ratings, is_reset=False):
     # simulate adding a new user into the original data file
-    df = pd.read_csv('./ratings.csv')
-    df.to_csv('new_' + 'ratings.csv', index=False)
+    if is_reset or not os.path.exists('new_ratings.csv'):
+        df = pd.read_csv('./ratings.csv')
+        df.to_csv('new_' + 'ratings.csv', index=False)
+    new_df = pd.read_csv('./new_ratings.csv', sep='\t', header=None, names=['user', 'item', 'rating', 'timestamp'])
+    uid = int(new_df['user'].max()) + 1
     with open(r'new_ratings.csv', mode='a', newline='', encoding='utf8') as cfa:
         wf = csv.writer(cfa, delimiter='\t')
         for (i, s) in new_user_ratings:

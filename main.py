@@ -35,19 +35,18 @@ class Movie(BaseModel):
 # == == == == == == == == == API == == == == == == == == == == =
 
 # show four genres
+'''
 @app.get("/api/genre")
 def get_genre():
     return {'genre': ["Action", "Adventure", "Animation", "Children"]}
-
+'''
 
 # show all generes
-'''
 @app.get("/api/genre")
 def get_genre():
     return {'genre': ["Action", "Adventure", "Animation", "Children", "Comedy", "Crime",
                       "Documentary", "Drama", "Fantasy", "Film_Noir", "Horror", "Musical", "Mystery",
                       "Romance", "Sci_Fi", "Thriller", "War", "Western"]}
-'''
 
 
 @app.post("/api/movies")
@@ -69,19 +68,20 @@ def get_recommend(movies: List[Movie]):
     # iid = str(sorted(movies, key=lambda i: i.score, reverse=True)[0].movie_id)
     # score = int(sorted(movies, key=lambda i: i.score, reverse=True)[0].score)
     new_user_ratings = [(str(i.movie_id), int(i.score)) for i in movies]
-    res = get_recommend_items_by_svd(new_user_ratings)
+    uid, res = get_recommend_items_by_svd(new_user_ratings)
     res = [int(i) for i in res]
     if len(res) > 12:
         res = res[:12]
-    # print(res)
+    print(res)
     rec_movies = movie_info.loc[movie_info['movie_id'].isin(res)]
     # print(rec_movies)
     # rec_movies.loc[:, 'like'] = None
     rec_temp = pd.DataFrame(rec_movies)
     rec_temp.loc[:, 'like'] = None
-    results = rec_movies.loc[:, [
+    movies = rec_movies.loc[:, [
         'movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
-    return json.loads(results.to_json(orient="records"))
+    results = {'user_id': uid, 'movies': movies.to_json(orient="records")}
+    return json.loads(json.dumps(results))
 
 
 @app.get("/api/add_recommend/{item_id}")
