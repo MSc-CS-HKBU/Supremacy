@@ -13,65 +13,83 @@
 </head>
 <div id="app">
     <el-menu mode="horizontal" default-active="1" background-color="#545c64" text-color="#fff" active-text-color="#ffd04b">
-        <el-menu-item index="1">Movie Recommender System</el-menu-item>
+        <el-menu-item index="1">Movie Recommendation System</el-menu-item>
     </el-menu>
-    <el-container>
+    <el-container style="margin: 10px;">
         <el-main>
-            <h2>Recommended</h2>
+            <div>
+                <el-button size="large" type="primary" plain :disabled="evaluation_show" style="position:absolute;top:80px;right:20px" @click="evaluate_btn()" round>
+                    <i class="el-icon-s-data el-icon--left"></i> Evaluate
+                </el-button>
+                <h1>Recommended List</h1>
+                <h4>You can hover on the poster to see the reason why we recommend this movie to you.</h4>
+                <el-row :gutter="30">
+                    <div class="grid-content bg-purple-light">
+                        <el-col :span="4" v-for="o in recommended" :key="o.movie_id" :offset="0" style="border-radius: 4px;">
+                            <el-card :body-style="{ padding: '0px' }" shadow="hover" style="margin-top:15px;margin-bottom:10px;height:450px;overflow:auto;position:relative">
+                                <el-popover placement="top-start" title="Reason for Recommendation" width="200" trigger="hover">
+                                    <hr>
+                                    <!-- slot插入 -->
+                                    {{o.movie_title}}
+                                    <!-- 插入结束 -->
+                                    <el-image slot="reference" style="width: 100%;height:300px;" :src="o.poster_url" fit="cover"></el-image>
+                                </el-popover>
+                                <h4 style="padding:0 10px;margin:0">{{o.movie_title}}</h4>
+                                <!-- <h5 style="padding:0 10px;margin:0.5em">{{ o.release_date }}</h5> -->
+                                <h5 style="padding:0 10px;margin:0.5em">Average Score: {{ o.movie_id }}</h5>
+                                <el-button size="small" type="info" plain style="position:absolute;bottom:10px;left:10px" @click="disliked_btn(o)">
+                                    <i class="el-icon-close el-icon--left"></i>Dislike
+                                </el-button>
+                                <el-button size="small" type="danger" plain style="position:absolute;bottom:10px;right:10px" @click="liked_btn(o)">
+                                    <i class="el-icon-check el-icon--left"></i> Like
+                                </el-button>
+                            </el-card>
+                        </el-col>
+                    </div>
+                </el-row>
 
-            <el-row :gutter="20">
-                <el-col :span="4" v-for="o in recommended" :key="o.movie_id" :offset="0">
-                    <el-card :body-style="{ padding: '0px' }" style="margin-top:15px;height:400px;overflow:auto;position:relative">
-                        <el-image style="width: 100%;height:240px;" :src="o.poster_url" fit="cover"></el-image>
-                        <h4 style="padding:0 10px;margin:0">{{o.movie_title}}</h4>
-                        <h6 style="padding:0 10px;margin:0.5em">{{ o.release_date }}</h6>
-                        <el-button type="danger" plain style="position:absolute;bottom:10px;right:10px" @click="liked_btn(o)">
-                            <i class="el-icon-medal el-icon--left"></i>Like
-                        </el-button>
-                    </el-card>
-                </el-col>
-            </el-row>
-            <h2>Liked with Similar Items</h2>
-
-            <el-row :gutter="20">
-                <el-col :span="4" v-for="o in liked" :key="o.movie_id" :offset="0">
-                    <el-card :body-style="{ padding: '0px' }" style="margin-top:15px;height:400px;overflow:auto;position:relative">
-                        <el-image style="width: 100%;height:240px;" :src="o.poster_url" fit="cover"></el-image>
-                        <h4 style="padding:0 10px;margin:0">{{o.movie_title}}</h4>
-                        <h6 style="padding:0 10px;margin:0.5em">{{ o.release_date }}</h6>
-                    </el-card>
-                </el-col>
-            </el-row>
-            <!--  Dialog0-->
-            <el-dialog title="Please choose any genre you're interested in." :visible="dialog0" width="60%" :show-close="false">
-                <span>Multiple answers are possible.</span>
-                <el-checkbox-group v-model="selected_genre" style="margin-top:20px">
-                    <el-checkbox :label=item border v-for="(item, index) in genre" :key="index" style="margin-top:20px; margin-left: 0px"></el-checkbox>
-                </el-checkbox-group>
-                <span slot="footer" class="dialog-footer">
-                    <el-button type="danger" @click="step1" plain :disabled="step1_show"
-                               style="min-width:128px">Next</el-button>
-                </span>
-            </el-dialog>
-            <!--  Dialog1-->
-            <el-dialog title="Please rate the following movies." :visible="dialog1" width="80%" :show-close="false">
+                <h2>Liked with Similar Items</h2>
                 <el-row :gutter="20">
-                    <el-col :span="4" v-for="o in movies" :key="o.movie_id" :offset="0">
-                        <el-card :body-style="{ padding: '0px' }" style="margin-top:15px;height:368px;overflow:auto">
+                    <el-col :span="4" v-for="o in liked" :key="o.movie_id" :offset="0">
+                        <el-card :body-style="{ padding: '0px' }" shadow="hover" style="margin-top:15px;height:400px;overflow:auto;position:relative">
                             <el-image style="width: 100%;height:240px;" :src="o.poster_url" fit="cover"></el-image>
                             <h4 style="padding:0 10px;margin:0">{{o.movie_title}}</h4>
-                            <el-rate v-model="o.score" style="padding:10px 10px;"></el-rate>
+                            <h6 style="padding:0 10px;margin:0.5em">{{ o.release_date }}</h6>
                         </el-card>
                     </el-col>
                 </el-row>
-                <span slot="footer" class="dialog-footer">
-                    <el-button type="danger" @click="step2" plain :disabled="step2_show"
-                               style="width:128px">Next</el-button>
-                </span>
-            </el-dialog>
+                <!--  Dialog0-->
+                <el-dialog title="Please choose any genre you're interested in." :visible="dialog0" width="60%" :show-close="false">
+                    <span style="font-size: large;">Multiple answers are possible.</span>
+
+                    <el-checkbox-group v-model="selected_genre" style="margin-top:10px">
+                        <el-checkbox :label=item border v-for="(item, index) in genre" :key="index" style="margin-top:20px; margin-left: 0px"></el-checkbox>
+                    </el-checkbox-group>
+                    <span slot="footer" class="dialog-footer">
+                        <el-button type="danger" @click="step1" plain :disabled="step1_show" style="min-width:128px">
+                            Next
+                        </el-button>
+                    </span>
+                </el-dialog>
+                <!--  Dialog1-->
+                <el-dialog title="Please rate at least one of the following movies." :visible="dialog1" width="80%" :show-close="false">
+                    <el-row :gutter="20">
+                        <el-col :span="4" v-for="o in movies" :key="o.movie_id" :offset="0">
+                            <el-card :body-style="{ padding: '0px' }" shadow="hover" style="margin-top:15px;height:350px;overflow:auto">
+                                <el-image style="width: 100%;height:240px;" :src="o.poster_url" fit="cover"></el-image>
+                                <h4 style="padding:0 10px;margin:0">{{o.movie_title}}</h4>
+                                <el-rate v-model="o.score" style="padding:10px 10px;" :colors="['#99A9BF', '#F7BA2A', '#FF9900']"></el-rate>
+                            </el-card>
+                        </el-col>
+                    </el-row>
+                    <span slot="footer" class="dialog-footer">
+                        <el-button type="danger" @click="step2" plain :disabled="step2_show" style="width:128px">Next
+                        </el-button>
+                    </span>
+                </el-dialog>
+            </div>
 
         </el-main>
-
     </el-container>
 </div>
 
@@ -94,17 +112,15 @@
                     movies: [],
                     recommended: [],
                     liked: [],
+                    evaluation: [],
                     dialog0: true,
                     dialog1: false,
-                    iconClasses: ['icon-rate-face-1', 'icon-rate-face-2', 'icon-rate-face-3'],
-                    checkboxGroup1: [],
-                    value: 2
                 }
             },
             methods: {
                 step1: function() {
                     axios.post(this.baseurl + "/api/movies", this.selected_genre).then((res) => {
-                        //console.log(res);
+                        console.log(res);
                         this.movies = res.data;
                         console.log(typeof this.movies);
                         if (this.movies.length === 18) {
@@ -120,10 +136,12 @@
                 },
                 step2: function() {
                     //this.dialog1 = false;
-                    //console.log(this.movies);
+                    console.log(this.movies);
                     axios.post(this.baseurl + "/api/recommend", this.movies).then((res) => {
-                        // console.log(res.data)
+                        console.log("recommended");
+                        console.log(res.data);
                         this.recommended = res.data;
+                        console.log(this.recommended)
                         if (this.recommended.length > 0) {
                             this.dialog1 = false;
                         } else {
@@ -135,6 +153,10 @@
                     });
                 },
                 liked_btn: function(movie) {
+                    movie.ground_truth = 5;
+                    console.log("rate " + movie.movie_id + " with " + movie.ground_truth);
+                    this.evaluation.push(movie);
+                    console.log(this.evaluation);
                     let that = this;
                     this.liked.push(movie);
                     this.recommended.splice(this.recommended.findIndex(item => item.movie_id === movie.movie_id), 1);
@@ -142,6 +164,26 @@
                         console.log(res.data);
                         that.recommended.push.apply(that.recommended, res.data);
                         that.liked.push.apply(that.liked, res.data);
+                    })
+                },
+                disliked_btn: function(movie) {
+                    movie.ground_truth = 1;
+                    console.log("rate " + movie.movie_id + " with " + movie.ground_truth);
+                    this.evaluation.push(movie);
+                    console.log(this.evaluation);
+                    // let that = this;
+                    // this.liked.push(movie);
+                    this.recommended.splice(this.recommended.findIndex(item => item.movie_id === movie.movie_id), 1);
+                    // axios.get(this.baseurl + '/api/add_recommend/' + movie.movie_id).then((res) => {
+                    //     console.log(res.data);
+                    //     that.recommended.push.apply(that.recommended, res.data);
+                    //     that.liked.push.apply(that.liked, res.data);
+                    // })
+                },
+                evaluate_btn: function() {
+                    console.log(this.evaluation)
+                    axios.post(this.baseurl + "/api/evaluation/", this.evaluation).then((res) => {
+
                     })
                 }
             },
@@ -172,6 +214,13 @@
                         return true
                     }
                 },
+                evaluation_show: function() {
+                    if (this.evaluation.length >= 5) {
+                        return false;
+                    } else {
+                        return true;
+                    }
+                }
             }
         })
     </script>

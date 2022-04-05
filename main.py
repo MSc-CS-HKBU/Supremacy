@@ -1,3 +1,5 @@
+from tabnanny import verbose
+from textwrap import indent
 from typing import Optional, List
 from pydantic import BaseModel
 from fastapi import FastAPI
@@ -16,6 +18,8 @@ from surprise import dump
 from surprise import KNNBasic
 from surprise import KNNWithMeans
 from surprise import Dataset
+import random
+from surprise import accuracy
 
 app = FastAPI()
 app.add_middleware(
@@ -28,6 +32,7 @@ app.add_middleware(
 
 # =======================DATA=========================
 data = pd.read_csv("movies_update.csv")
+
 
 """
 =================== Body =============================
@@ -73,14 +78,23 @@ def get_recommend(movies: List[Movie]):
     iid = str(sorted(movies, key=lambda i: i.score, reverse=True)[0].movie_id)
     score = int(sorted(movies, key=lambda i: i.score, reverse=True)[0].score)
     res = get_initial_items(iid,score)
-    res = [int(i) for i in res]
-    if len(res) > 12:
-        res = res[:12]
-    print(res)
-    rec_movies = data.loc[data['movie_id'].isin(res)]
+    res_id = []
+    for i in res:
+        res_id.append(int(i[0]))
+    if len(res_id) > 12:
+        res_id = res_id[:12]
+    print(res_id)
+    rec_movies = data.loc[data['movie_id'].isin(res_id)]
     print(rec_movies)
+
     rec_movies.loc[:, 'like'] = None
-    results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
+    rec_movies.loc[:, 'ground_truth'] = 0
+    rec_movies.loc[:, 'pred'] = 0
+    print(rec_movies.iloc[0,:])
+    for i in range(12):
+        rec_movies.iloc[i, 27] = res[i][1]
+    results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like', 'ground_truth', 'pred']]
+    print(results)
     return json.loads(results.to_json(orient="records"))
 
 
@@ -92,8 +106,20 @@ async def add_recommend(item_id):
     rec_movies = data.loc[data['movie_id'].isin(res)]
     print(rec_movies)
     rec_movies.loc[:, 'like'] = None
-    results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
+    rec_movies.loc[:, 'ground_truth'] = 0
+    rec_movies.loc[:, 'pred'] = 5
+    results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like','ground_truth','pred']]
     return json.loads(results.to_json(orient="records"))
+
+# evaluation & accuracy
+@app.post("/api/evaluation")
+async def run_eval(movies:list):
+    predictions = []
+    for i in movies:
+        print(i['pred'])
+        predictions.append(['611', i['movie_id'], i['ground_truth'], i['pred'], False])
+    print(predictions)
+    accuracy.rmse(predictions, verbose=True)
 
 
 def user_add(iid, score):
@@ -110,7 +136,7 @@ def user_add(iid, score):
             wf.writerow(k)
 
 def get_initial_items(iid, score, n=12):
-    res = []
+    random_res = []
     user_add(iid, score)
     file_path = os.path.expanduser('new_ratings.csv')
     reader = Reader(line_format='user item rating timestamp', sep='\t')
@@ -121,39 +147,23 @@ def get_initial_items(iid, score, n=12):
     algo.fit(trainset)
     dump.dump('./model',algo=algo,verbose=1)
     all_results = {}
-    for i in range(10000):
+    for i in range(193609):
         uid = str(611)
         iid = str(i)
         pred = algo.predict(uid,iid).est
-        all_results[iid] = pred
-    sorted_list = sorted(all_results.items(), key = lambda kv:(kv[1], kv[0]), reverse=True)
-    for i in range(n):
-        print(sorted_list[i])
-        res.append(sorted_list[i][0])
-    return res
+        if pred >= 5:
+            all_results[iid] = pred
+    for key in all_results:
+        random_res = random.sample(all_results.items(), 12)
 
-def get_initial_items(iid, score, n=12):
-    res = []
-    user_add(iid, score)
-    file_path = os.path.expanduser('new_ratings.csv')
-    reader = Reader(line_format='user item rating timestamp', sep='\t')
-    data = Dataset.load_from_file(file_path, reader=reader)
-    trainset = data.build_full_trainset()
-    # algo = KNNBasic(sim_options={'name': 'pearson', 'user_based': False})
-    algo = KNNWithMeans(sim_options={'name': 'pearson', 'user_based': False})
-    algo.fit(trainset)
-    dump.dump('./model',algo=algo,verbose=1)
-    all_results = {}
-    for i in range(10000):
-        uid = str(611)
-        iid = str(i)
-        pred = algo.predict(uid,iid).est
-        all_results[iid] = pred
-    sorted_list = sorted(all_results.items(), key = lambda kv:(kv[1], kv[0]), reverse=True)
-    for i in range(n):
-        print(sorted_list[i])
-        res.append(sorted_list[i][0])
-    return res
+
+    print(random_res)
+    #     all_results[iid] = pred
+    # sorted_list = sorted(all_results.items(), key = lambda kv:(kv[1], kv[0]), reverse=True)
+    # for i in range(n):
+    #     print('sorted_list:',sorted_list[i])
+    #     res.append(sorted_list[i])
+    return random_res
 
 def get_similar_items(iid, n=12):
     algo = dump.load('./model')[1]
@@ -163,6 +173,9 @@ def get_similar_items(iid, n=12):
     neighbors_iid = [algo.trainset.to_raw_iid(x) for x in neighbors]
     print("neighbors_iid", neighbors_iid)
     return neighbors_iid
+
+
+    
 
 if __name__ == '__main__':
     uvicorn.run(app, host='0.0.0.0', port=8000)
