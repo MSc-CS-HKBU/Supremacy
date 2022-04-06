@@ -1,9 +1,44 @@
 import csv
 import os
+import random
+from tkinter import N
 import numpy as np
 import pandas as pd
 from scipy import spatial
 from surprise import KNNWithMeans, SVD, Reader, Dataset, dump
+
+
+def get_recommend_items_by_knn(new_user_ratings, n=12):
+    random_rec = []
+    based_iid_list, trainset = user_add(new_user_ratings)
+    uid = trainset.n_users
+    item_rid_list = [trainset.to_raw_iid(inner_id)
+                     for inner_id in trainset.ir.keys()]
+    print(f'number of total users: {trainset.n_users}')
+
+    # algo = KNNBasic(sim_options={'name': 'pearson', 'user_based': False})
+    algo = KNNWithMeans(k=60, sim_options={
+                        'name': 'pearson', 'user_based': False})
+    algo.fit(trainset)
+    dump.dump('./model', algo=algo, verbose=1)
+    all_results = {}
+    if not os.path.exists('pred_ratings.csv'):
+        with open('pred_ratings.csv', mode='a', newline='', encoding='utf8') as cf:
+            cf.truncate()
+    with open(r'pred_ratings.csv', mode='a', newline='', encoding='utf8') as cfa:
+        wf = csv.writer(cfa, delimiter='\t')
+        for i in item_rid_list:
+            uid = str(uid)
+            iid = str(i)
+            pred = algo.predict(uid, iid).est
+            if pred >= 5:
+                all_results[iid] = pred
+            wf.writerow([uid, iid, pred])
+    for key in all_results:
+        random_rec = random.sample(all_results.items(), 12)
+    for i in random_rec:
+        print(i)
+    return uid, based_iid_list, random_rec
 
 
 def get_recommend_items_by_svd(new_user_ratings, n=12):
@@ -31,12 +66,19 @@ def get_recommend_items_by_svd(new_user_ratings, n=12):
             wf.writerow([uid, iid, pred])
     sorted_list = sorted(all_results.items(),
                          key=lambda kv: (kv[1], kv[0]), reverse=True)
-    # for i in range(n):
-    #     print(sorted_list[i])
-    #     rec_iid_list.append(sorted_list[i][0])
     for i in sorted_list[:n]:
         print(i)
     return uid, based_iid_list, sorted_list[:n]
+
+
+def get_similar_items_by_knn(iid, n=12):
+    algo = dump.load('./model')[1]
+    print("iid", iid)
+    inner_id = algo.trainset.to_inner_iid(iid)
+    neighbors = algo.get_neighbors(inner_id, k=n)
+    neighbors_iid = [algo.trainset.to_raw_iid(x) for x in neighbors]
+    print("neighbors_iid", neighbors_iid)
+    return neighbors_iid
 
 
 def get_similar_items_by_svd(iid, n=12):

@@ -64,7 +64,8 @@
                 </span>
             </el-dialog>
             <!--  Dialog1-->
-            <el-dialog title="Please rate the following at least 10 movies." :visible="dialog1" width="80%" :show-close="false">
+            <el-dialog title="Please rate the following at least 10 movies." :visible="dialog1" width="80%"
+                :show-close="false">
                 <el-row :gutter="20">
                     <el-col :span="4" v-for="o in movies" :key="o.movie_id" :offset="0">
                         <el-card :body-style="{ padding: '0px' }" style="margin-top:15px;height:368px;overflow:auto">
@@ -75,6 +76,9 @@
                     </el-col>
                 </el-row>
                 <span slot="footer" class="dialog-footer">
+                    <el-switch v-model="is_svd" active-color="#13ce66" inactive-color="#ff4949"
+                        active-text="if on, it is using SVD algorithm.">
+                    </el-switch>
                     <el-button type="danger" @click="step2" plain :disabled="step2_show" style="width:128px">Next
                     </el-button>
                 </span>
@@ -101,6 +105,7 @@
                     baseurl: 'http://127.0.0.1:8000',
                     genre: [],
                     selected_genre: [],
+                    is_svd: false,
                     user_id: '',
                     based_movies: [],
                     movies: [],
@@ -133,7 +138,14 @@
                 step2: function () {
                     //this.dialog1 = false;
                     //console.log(this.movies);
-                    axios.post(this.baseurl + "/api/recommend", this.movies).then((res) => {
+                    // const obj = {
+                    //     'is_svd': this.is_svd,
+                    //     'movies': this.movie
+                    // };
+                    axios.post(this.baseurl + "/api/recommend", {
+                        is_svd: this.is_svd,
+                        movies: this.movies
+                    }).then((res) => {
                         // console.log(typeof res.data);
                         this.user_id = res.data['user_id'];
                         this.based_movies = res.data['based_movies'];
@@ -141,7 +153,7 @@
                         // var movies = res.data['movies'];
                         // movies = eval("("+movies+")");
                         // console.log(typeof movies);
-                        this.recommended = eval("("+res.data['movies']+")");
+                        this.recommended = eval("(" + res.data['movies'] + ")");
                         if (this.recommended.length > 0) {
                             this.dialog1 = false;
                         } else {
@@ -157,7 +169,7 @@
                     this.liked.splice(0, this.liked.length);
                     this.liked.push(movie);
                     this.recommended.splice(this.recommended.findIndex(item => item.movie_id === movie.movie_id), 1);
-                    axios.get(this.baseurl + '/api/add_recommend/' + movie.movie_id).then((res) => {
+                    axios.get(this.baseurl + '/api/add_recommend/' + movie.movie_id + '?is_svd=' + this.is_svd).then((res) => {
                         console.log(res.data);
                         // that.recommended.push.apply(that.recommended, res.data);
                         // that.liked.push.apply(that.liked, res.data);

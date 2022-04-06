@@ -1,11 +1,12 @@
-from typing import Optional, List
+from typing import Any, Optional, List, Dict
+from xmlrpc.client import boolean
 from pydantic import BaseModel
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import uvicorn
 import json
-from recommender import get_recommend_items_by_svd, get_similar_items_by_svd
+from recommender import get_recommend_items_by_knn, get_similar_items_by_knn, get_recommend_items_by_svd, get_similar_items_by_svd
 
 app = FastAPI()
 app.add_middleware(
@@ -32,6 +33,11 @@ class Movie(BaseModel):
     score: int
 
 
+class Recommend(BaseModel):
+    is_svd: boolean
+    movies: List[Movie]
+
+
 # == == == == == == == == == API == == == == == == == == == == =
 
 # show four genres
@@ -42,6 +48,8 @@ def get_genre():
 '''
 
 # show all generes
+
+
 @app.get("/api/genre")
 def get_genre():
     return {'genre': ["Action", "Adventure", "Animation", "Children", "Comedy", "Crime",
@@ -63,34 +71,50 @@ def get_movies(genre: list):
 
 
 @app.post("/api/recommend")
-def get_recommend(movies: List[Movie]):
+def get_recommend(recommend: Recommend):
+    is_svd = recommend.is_svd
+    movies = recommend.movies
     # print(movies)
     # iid = str(sorted(movies, key=lambda i: i.score, reverse=True)[0].movie_id)
     # score = int(sorted(movies, key=lambda i: i.score, reverse=True)[0].score)
     new_user_ratings = [(str(i.movie_id), int(i.score)) for i in movies]
-    uid, based_iid_list, rec_list = get_recommend_items_by_svd(new_user_ratings)
+    if is_svd:
+        # print('Using SVD gets recommended items:')
+        uid, based_iid_list, rec_list = get_recommend_items_by_svd(
+            new_user_ratings)
+    else:
+        # print('Using KNN gets recommended items:')
+        uid, based_iid_list, rec_list = get_recommend_items_by_knn(new_user_ratings)
     rec_iid_list = [int(i) for i, _ in rec_list]
     if len(rec_iid_list) > 12:
         rec_iid_list = rec_iid_list[:12]
-    print(rec_iid_list)
-    based_movies = list(movie_info.loc[movie_info['movie_id'].isin(based_iid_list)]['movie_title'])
+    # print(rec_iid_list)
+    based_movies = list(
+        movie_info.loc[movie_info['movie_id'].isin(based_iid_list)]['movie_title'])
     rec_movies = movie_info.loc[movie_info['movie_id'].isin(rec_iid_list)]
     # print(rec_movies)
     # rec_movies.loc[:, 'like'] = None
     rec_temp = pd.DataFrame(rec_movies)
     rec_temp.loc[:, 'predicted'] = None
+    rec_temp.loc[:, 'ground_truth'] = None
     rec_temp.loc[:, 'like'] = None
     for iid, pred in rec_list:
-        rec_movies.loc[rec_movies['movie_id']==int(iid), 'predicted'] = pred
+        rec_movies.loc[rec_movies['movie_id'] == int(iid), 'predicted'] = pred
     movies = rec_movies.loc[:, [
-        'movie_id', 'movie_title', 'release_date', 'poster_url', 'predicted', 'like']]
-    results = {'user_id': uid, 'based_movies': based_movies, 'movies': movies.to_json(orient="records")}
+        'movie_id', 'movie_title', 'release_date', 'poster_url', 'predicted', 'ground_truth', 'like']]
+    results = {'user_id': uid, 'based_movies': based_movies,
+               'movies': movies.to_json(orient="records")}
     return json.loads(json.dumps(results))
 
 
 @app.get("/api/add_recommend/{item_id}")
-async def add_recommend(item_id):
-    res = get_similar_items_by_svd(str(item_id), n=5)
+async def add_recommend(item_id: int, is_svd: boolean):
+    if is_svd:
+        # print('Using SVD gets similar items:')
+        res = get_similar_items_by_svd(str(item_id), n=5)
+    else:
+        # print('Using KNN gets similar items:')
+        res = get_similar_items_by_knn(str(item_id), n=5)
     res = [int(i) for i in res]
     # print(res)
     similar_movies = movie_info.loc[movie_info['movie_id'].isin(res)]
