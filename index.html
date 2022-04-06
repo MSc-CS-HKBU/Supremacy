@@ -109,6 +109,7 @@
                     baseurl: 'http://127.0.0.1:8000',
                     genre: [],
                     selected_genre: [],
+                    user_id: '',
                     movies: [],
                     recommended: [],
                     liked: [],
@@ -119,7 +120,7 @@
             },
             methods: {
                 step1: function() {
-                    axios.post(this.baseurl + "/api/movies", this.selected_genre).then((res) => {
+                    axios.post(this.baseurl + "/api/movies_knn", this.selected_genre).then((res) => {
                         console.log(res);
                         this.movies = res.data;
                         console.log(typeof this.movies);
@@ -137,10 +138,10 @@
                 step2: function() {
                     //this.dialog1 = false;
                     console.log(this.movies);
-                    axios.post(this.baseurl + "/api/recommend", this.movies).then((res) => {
+                    axios.post(this.baseurl + "/api/recommend_knn", this.movies).then((res) => {
                         console.log("recommended");
-                        console.log(res.data);
-                        this.recommended = res.data;
+                        this.user_id = res.data['user_id'];
+                        this.recommended = eval("(" + res.data['movies'] + ")");
                         console.log(this.recommended)
                         if (this.recommended.length > 0) {
                             this.dialog1 = false;
@@ -160,7 +161,7 @@
                     let that = this;
                     this.liked.push(movie);
                     this.recommended.splice(this.recommended.findIndex(item => item.movie_id === movie.movie_id), 1);
-                    axios.get(this.baseurl + '/api/add_recommend/' + movie.movie_id).then((res) => {
+                    axios.get(this.baseurl + '/api/add_recommend_knn/' + movie.movie_id).then((res) => {
                         console.log(res.data);
                         that.recommended.push.apply(that.recommended, res.data);
                         that.liked.push.apply(that.liked, res.data);
@@ -181,10 +182,14 @@
                     // })
                 },
                 evaluate_btn: function() {
-                    console.log(this.evaluation)
-                    axios.post(this.baseurl + "/api/evaluation/", this.evaluation).then((res) => {
-
-                    })
+                    console.log(this.user_id);
+                    console.log(this.evaluation);
+                    this.evaluation.forEach(element => {
+                        element.user_id = this.user_id;
+                    });
+                    axios.post(this.baseurl + "/api/evaluation", this.evaluation).then((res) => {
+                        // console.log(res);
+                    });
                 }
             },
             mounted: function() {
