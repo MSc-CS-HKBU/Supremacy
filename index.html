@@ -31,7 +31,7 @@
     </el-menu>
     <el-container style="margin: 10px;">
         <el-main>
-            <!-- Evaluate button & 文字提示 -->
+            <!-- Evaluate button & 文字提示 and it will send back user_id -->
             <el-tooltip class="item" effect="dark" content="You need to click 5 movie and you can evaluate."
                 placement="bottom-end" :disabled="false">
                 <span style="position:absolute;top:90px;right:40px">
@@ -50,7 +50,7 @@
                         style="border-radius: 4px;">
                         <el-card :body-style="{ padding: '0px' }" shadow="hover"
                             style="margin-top:15px;margin-bottom:10px;height:420px;overflow:auto;position:relative">
-                            <!-- 弹出框 -->
+                            <!-- 弹出框 Popover/explanation -->
                             <el-popover placement="top-start" title="We recommend this movie" width="250" height="500"
                                 trigger="hover">
                                 <!-- slot插入 -->
@@ -188,6 +188,7 @@
                     console.log("step2");
                     console.log(this.movies);
                     let api_string = [];
+                    // recommendation selection
                     if (this.radio1 == '1') {
                         api_string = "/api/recommend";
                         // console.log(api_string);
@@ -219,6 +220,7 @@
                     this.liked.push(movie);
                     var uid = parseInt(this.user_id);
                     this.recommended.splice(this.recommended.findIndex(item => item.movie_id === movie.movie_id), 1);
+                    // here uid will be send back to back-end
                     axios.get(this.baseurl + '/api/add_recommend/' + movie.movie_id + '&' + uid).then((res) => {
                         console.log(res.data);
                         that.recommended.push.apply(that.recommended, res.data);
@@ -243,6 +245,7 @@
                     console.log("evaluation1");
                     console.log(this.user_id);
                     console.log(this.evaluation);
+                    // add user_id
                     this.evaluation.forEach(element => {
                         element.user_id = this.user_id;
                     });

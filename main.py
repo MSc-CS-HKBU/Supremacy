@@ -95,7 +95,7 @@ def get_recommend(movies: List[Movie]):
     print(results)
     return json.loads(results.to_json(orient="records"))
 
-
+# receive uid
 @app.get("/api/add_recommend/{item_id}&{u_id}")
 async def add_recommend(item_id, u_id):
     print("uid", u_id)
