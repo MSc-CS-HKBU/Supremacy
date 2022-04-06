@@ -1,3 +1,4 @@
+from textwrap import indent
 from typing import Optional, List
 from pydantic import BaseModel
 from fastapi import FastAPI
@@ -14,7 +15,9 @@ from utils import map_genre
 import json
 from surprise import dump
 from surprise import KNNBasic
+from surprise import KNNWithMeans
 from surprise import Dataset
+import random
 
 app = FastAPI()
 app.add_middleware(
@@ -26,7 +29,8 @@ app.add_middleware(
 )
 
 # =======================DATA=========================
-data = pd.read_csv("movie_info.csv")
+data = pd.read_csv("movies_update.csv")
+
 
 """
 =================== Body =============================
@@ -43,18 +47,18 @@ class Movie(BaseModel):
 # == == == == == == == == == API == == == == == == == == == == =
 
 # show four genres
-@app.get("/api/genre")
-def get_genre():
-    return {'genre': ["Action", "Adventure", "Animation", "Children"]}
+# @app.get("/api/genre")
+# def get_genre():
+#     return {'genre': ["Action", "Adventure", "Animation", "Children"]}
 
 # show all generes
-'''
+
 @app.get("/api/genre")
 def get_genre():
     return {'genre': ["Action", "Adventure", "Animation", "Children", "Comedy", "Crime",
                       "Documentary", "Drama", "Fantasy", "Film_Noir", "Horror", "Musical", "Mystery",
                       "Romance", "Sci_Fi", "Thriller", "War", "Western"]}
-'''
+
 
 @app.post("/api/movies")
 def get_movies(genre: list):
@@ -72,19 +76,29 @@ def get_recommend(movies: List[Movie]):
     iid = str(sorted(movies, key=lambda i: i.score, reverse=True)[0].movie_id)
     score = int(sorted(movies, key=lambda i: i.score, reverse=True)[0].score)
     res = get_initial_items(iid,score)
-    res = [int(i) for i in res]
-    if len(res) > 12:
-        res = res[:12]
-    print(res)
-    rec_movies = data.loc[data['movie_id'].isin(res)]
+    res_id = []
+    for i in res:
+        res_id.append(int(i[0]))
+    if len(res_id) > 12:
+        res_id = res_id[:12]
+    print(res_id)
+    rec_movies = data.loc[data['movie_id'].isin(res_id)]
     print(rec_movies)
+
     rec_movies.loc[:, 'like'] = None
-    results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
+    rec_movies.loc[:, 'ground_truth'] = 0
+    rec_movies.loc[:, 'prediction'] = 0
+    # print(rec_movies.iloc[0,:])
+    for i in range(12):
+        rec_movies.iloc[i, 27] = res[i][1]
+    results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like', 'ground_truth', 'prediction']]
+    print(results)
     return json.loads(results.to_json(orient="records"))
 
 
-@app.get("/api/add_recommend/{item_id}")
-async def add_recommend(item_id):
+@app.get("/api/add_recommend/{item_id}&{u_id}")
+async def add_recommend(item_id, u_id):
+    print("uid", u_id)
     res = get_similar_items(str(item_id), n=5)
     res = [int(i) for i in res]
     print(res)
@@ -94,13 +108,17 @@ async def add_recommend(item_id):
     results = rec_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
     return json.loads(results.to_json(orient="records"))
 
+@app.post("/api/evaluation")
+def run_eval(movies: list):
+    print("=======================")
+    print(movies)
 
 def user_add(iid, score):
-    user = '944'
+    user = '611'
     # simulate adding a new user into the original data file
-    df = pd.read_csv('./u.data')
-    df.to_csv('new_' + 'u.data')
-    with open(r'new_u.data',mode='a',newline='',encoding='utf8') as cfa:
+    df = pd.read_csv('./ratings.csv')
+    df.to_csv('new_' + 'ratings.csv')
+    with open(r'new_ratings.csv',mode='a',newline='',encoding='utf8') as cfa:
         wf = csv.writer(cfa,delimiter='\t')
         data_input = []
         s = [user,str(iid),int(score),'0']
@@ -109,34 +127,40 @@ def user_add(iid, score):
             wf.writerow(k)
 
 def get_initial_items(iid, score, n=12):
-    res = []
+    random_res = []
     user_add(iid, score)
-    file_path = os.path.expanduser('new_u.data')
+    file_path = os.path.expanduser('new_ratings.csv')
     reader = Reader(line_format='user item rating timestamp', sep='\t')
     data = Dataset.load_from_file(file_path, reader=reader)
     trainset = data.build_full_trainset()
-    algo = KNNBasic(sim_options={'name': 'pearson', 'user_based': False})
+    # algo = KNNBasic(sim_options={'name': 'pearson', 'user_based': False})
+    algo = KNNWithMeans(sim_options={'name': 'pearson', 'user_based': False})
     algo.fit(trainset)
     dump.dump('./model',algo=algo,verbose=1)
     all_results = {}
-    for i in range(1682):
-        uid = str(944)
+    for i in range(193609):
+        uid = str(611)
         iid = str(i)
         pred = algo.predict(uid,iid).est
-        all_results[iid] = pred
-    sorted_list = sorted(all_results.items(), key = lambda kv:(kv[1], kv[0]), reverse=True)
-    for i in range(n):
-        print(sorted_list[i])
-        res.append(sorted_list[i][0])
-    return res
+        if pred >= 5:
+            all_results[iid] = pred
+    for key in all_results:
+        random_res = random.sample(all_results.items(), 12)
+    print(random_res)
+    #     all_results[iid] = pred
+    # sorted_list = sorted(all_results.items(), key = lambda kv:(kv[1], kv[0]), reverse=True)
+    # for i in range(n):
+    #     print('sorted_list:',sorted_list[i])
+    #     res.append(sorted_list[i])
+    return random_res
 
 def get_similar_items(iid, n=12):
     algo = dump.load('./model')[1]
+    print("iid", iid)
     inner_id = algo.trainset.to_inner_iid(iid)
-    print(inner_id)
     neighbors = algo.get_neighbors(inner_id, k=n)
     neighbors_iid = [algo.trainset.to_raw_iid(x) for x in neighbors]
-    print(neighbors_iid)
+    print("neighbors_iid", neighbors_iid)
     return neighbors_iid
 
 if __name__ == '__main__':

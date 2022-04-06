@@ -1,3 +1,6 @@
 # Dependency directories
 venv/
 __pycache__/
+new_*
+model
+.DS_Store
