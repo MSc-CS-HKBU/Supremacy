@@ -3,3 +3,4 @@ venv/
 __pycache__/
 model
 new_*
+pred_*

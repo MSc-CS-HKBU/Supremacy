@@ -7,26 +7,36 @@ from surprise import KNNWithMeans, SVD, Reader, Dataset, dump
 
 
 def get_recommend_items_by_svd(new_user_ratings, n=12):
-    rec_iid_list = []
-    trainset = user_add(new_user_ratings)
+    # rec_iid_list = []
+    based_iid_list, trainset = user_add(new_user_ratings)
     uid = trainset.n_users
-    item_rid_list = [trainset.to_raw_iid(inner_id) for inner_id in trainset.ir.keys()]
+    item_rid_list = [trainset.to_raw_iid(inner_id)
+                     for inner_id in trainset.ir.keys()]
     print(f'number of total users: {trainset.n_users}')
-    algo = SVD(n_factors=20, n_epochs=30, biased=False)     # optimal parameters from Jupyter Notebook
+    # optimal parameters from Jupyter Notebook
+    algo = SVD(n_factors=20, n_epochs=30, biased=False)
     algo.fit(trainset)
     dump.dump('./model', algo=algo, verbose=1)
     all_results = {}
-    for i in item_rid_list:
-        uid = str(uid)
-        iid = str(i)
-        pred = algo.predict(uid, iid).est
-        all_results[iid] = pred
+    if not os.path.exists('pred_ratings.csv'):
+        with open('pred_ratings.csv', mode='a', newline='', encoding='utf8') as cf:
+            cf.truncate()
+    with open(r'pred_ratings.csv', mode='a', newline='', encoding='utf8') as cfa:
+        wf = csv.writer(cfa, delimiter='\t')
+        for i in item_rid_list:
+            uid = str(uid)
+            iid = str(i)
+            pred = round(algo.predict(uid, iid).est, 4)
+            all_results[iid] = pred
+            wf.writerow([uid, iid, pred])
     sorted_list = sorted(all_results.items(),
                          key=lambda kv: (kv[1], kv[0]), reverse=True)
-    for i in range(n):
-        print(sorted_list[i])
-        rec_iid_list.append(sorted_list[i][0])
-    return uid, rec_iid_list
+    # for i in range(n):
+    #     print(sorted_list[i])
+    #     rec_iid_list.append(sorted_list[i][0])
+    for i in sorted_list[:n]:
+        print(i)
+    return uid, based_iid_list, sorted_list[:n]
 
 
 def get_similar_items_by_svd(iid, n=12):
@@ -53,22 +63,29 @@ def user_add(new_user_ratings, is_reset=False):
     if is_reset or not os.path.exists('new_ratings.csv'):
         df = pd.read_csv('./ratings.csv')
         df.to_csv('new_' + 'ratings.csv', index=False)
-    new_df = pd.read_csv('./new_ratings.csv', sep='\t', header=None, names=['user', 'item', 'rating', 'timestamp'])
+    new_df = pd.read_csv('./new_ratings.csv', sep='\t', header=None,
+                         names=['user', 'item', 'rating', 'timestamp'])
     uid = int(new_df['user'].max()) + 1
+    scores = []
     with open(r'new_ratings.csv', mode='a', newline='', encoding='utf8') as cfa:
         wf = csv.writer(cfa, delimiter='\t')
         for (i, s) in new_user_ratings:
             if s > 0:
                 new_rating = [str(uid), str(i), int(s), '0']
+                scores.append([str(i), int(s)])
                 wf.writerow(new_rating)
+    sorted_scores = sorted(scores, key=lambda x: x[1], reverse=True)
+    if len(sorted_scores) > 2:
+        sorted_scores = sorted_scores[:2]
+    based_list = [int(s[0]) for s in sorted_scores]
     file_path = os.path.expanduser('new_ratings.csv')
     reader = Reader(line_format='user item rating timestamp', sep='\t')
     data = Dataset.load_from_file(file_path, reader=reader)
     trainset = data.build_full_trainset()
-    return trainset
+    return based_list, trainset
 
 
-# Calculating k nearest neighbors step by step 
+# Calculating k nearest neighbors step by step
 def k_neighbors_item_based(train_set, raw_iid, k):
 
     train_user_list = [u_id for u_id in train_set.ur.keys()]

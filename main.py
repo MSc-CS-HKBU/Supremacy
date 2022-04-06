@@ -68,19 +68,23 @@ def get_recommend(movies: List[Movie]):
     # iid = str(sorted(movies, key=lambda i: i.score, reverse=True)[0].movie_id)
     # score = int(sorted(movies, key=lambda i: i.score, reverse=True)[0].score)
     new_user_ratings = [(str(i.movie_id), int(i.score)) for i in movies]
-    uid, res = get_recommend_items_by_svd(new_user_ratings)
-    res = [int(i) for i in res]
-    if len(res) > 12:
-        res = res[:12]
-    print(res)
-    rec_movies = movie_info.loc[movie_info['movie_id'].isin(res)]
+    uid, based_iid_list, rec_list = get_recommend_items_by_svd(new_user_ratings)
+    rec_iid_list = [int(i) for i, _ in rec_list]
+    if len(rec_iid_list) > 12:
+        rec_iid_list = rec_iid_list[:12]
+    print(rec_iid_list)
+    based_movies = list(movie_info.loc[movie_info['movie_id'].isin(based_iid_list)]['movie_title'])
+    rec_movies = movie_info.loc[movie_info['movie_id'].isin(rec_iid_list)]
     # print(rec_movies)
     # rec_movies.loc[:, 'like'] = None
     rec_temp = pd.DataFrame(rec_movies)
+    rec_temp.loc[:, 'predicted'] = None
     rec_temp.loc[:, 'like'] = None
+    for iid, pred in rec_list:
+        rec_movies.loc[rec_movies['movie_id']==int(iid), 'predicted'] = pred
     movies = rec_movies.loc[:, [
-        'movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
-    results = {'user_id': uid, 'movies': movies.to_json(orient="records")}
+        'movie_id', 'movie_title', 'release_date', 'poster_url', 'predicted', 'like']]
+    results = {'user_id': uid, 'based_movies': based_movies, 'movies': movies.to_json(orient="records")}
     return json.loads(json.dumps(results))
 
 
