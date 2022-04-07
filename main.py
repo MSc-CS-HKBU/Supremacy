@@ -174,7 +174,9 @@ async def run_comp():
     data_list_svd = data_array.tolist()
     # print(data_list_svd)
     print(ttest_ind(data_list_knn, data_list_svd))
-    print(ttest_ind(data_list_knn, data_list_svd).pvalue)
+    pvalue = ttest_ind(data_list_knn, data_list_svd).pvalue
+    print("pvalue: ", pvalue)
+    # return json.loads(pvalue.to_json(orient="records"))
 
 def user_add(new_user_ratings, is_reset=False):
     # simulate adding a new user into the original data file

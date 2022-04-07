@@ -36,7 +36,7 @@
                 <el-tooltip class="item" effect="dark" content="You need to finish evaluation first."
                     placement="bottom-end" :disabled="false">
                     <span>
-                        <el-button size="medium" type="primary" plain :disabled="compare_show" @click="compare_btn()"
+                        <el-button size="medium" type="primary" plain @click="compare_btn()"
                             round>
                             <i class="el-icon-document-copy el-icon--left"></i>Compare
                         </el-button>
@@ -93,8 +93,27 @@
                     </el-card>
                 </el-col>
             </el-row>
-            <!--  Dialog0-->
-            <el-dialog :visible="dialog0" width="65%" :show-close="false">
+
+            <!--  Dialog 0 -->
+            <el-dialog :visible="dialog0" width="50%" :show-close="false">
+                <div slot="title" class="header-title" style="color: black;font-size: x-large;">
+                    <strong>Please Choose the Recommendation Method you want.</strong>
+                    <el-divider><i class="el-icon-mobile-phone"></i></el-divider>
+                </div>
+                
+                <div>
+                    <el-radio v-model="radio1" label='1'>Centered Item-based KNN</el-radio>
+                    <el-radio v-model="radio1" label='2'>SVD</el-radio>
+                </div>
+                <span slot="footer" class="dialog-footer">
+                    <el-button type="danger" size="medium" @click="step0" plain
+                        style="min-width:128px" round>
+                        Next<i class="el-icon-right el-icon--right"></i>
+                    </el-button>
+                </span>
+            </el-dialog>
+            <!--  Dialog1-->
+            <el-dialog :visible="dialog1" width="55%" :show-close="false">
                 <div slot="title" class="header-title" style="color: black;font-size: x-large;">
                     <strong>Please Finish the Following Selection.</strong>
                 </div>
@@ -103,12 +122,6 @@
                     <el-checkbox :label=item v-for="(item, index) in genre" :key="index"
                         style="margin-top:20px; margin-left: 0px"></el-checkbox>
                 </el-checkbox-group>
-                <el-divider><i class="el-icon-mobile-phone"></i></el-divider>
-                <p style="font-size: large;margin-top:20px">Choose the Recommendation method you want.</p>
-                <div style="margin-top:20px">
-                    <el-radio v-model="radio1" label='1'>Centered Item-based KNN</el-radio>
-                    <el-radio v-model="radio1" label='2'>SVD</el-radio>
-                </div>
                 <span slot="footer" class="dialog-footer">
                     <el-button type="danger" size="medium" @click="step1" plain :disabled="step1_show"
                         style="min-width:128px" round>
@@ -116,8 +129,8 @@
                     </el-button>
                 </span>
             </el-dialog>
-            <!--  Dialog1-->
-            <el-dialog title="Please rate at least one of the following movies." :visible="dialog1" width="80%"
+            <!--  Dialog2-->
+            <el-dialog title="Please rate at least one of the following movies." :visible="dialog2" width="80%"
                 :show-close="false">
                 <el-row :gutter="20">
                     <el-col :span="4" v-for="o in movies" :key="o.movie_id" :offset="0">
@@ -163,22 +176,31 @@
                     evaluation: [],
                     dialog0: true,
                     dialog1: false,
+                    dialog2: false,
                     radio1: '1',
                     user_id: '',
                     based_movies: [],
-                    compare_show: true,
                     fullscreenLoading: false,
+                    is_svd: false,
                 }
             },
             methods: {
+                step0: function () {
+                    if (this.radio1 == '2') {
+                        this.is_svd = true;
+                    }
+                    console.log(this.is_svd);
+                    this.dialog0 = false;
+                    this.dialog1 = true;
+                },
                 step1: function () {
                     axios.post(this.baseurl + "/api/movies", this.selected_genre).then((res) => {
                         console.log(res);
                         this.movies = res.data;
                         console.log(typeof this.movies);
                         if (this.movies.length === 18) {
-                            this.dialog0 = false;
-                            this.dialog1 = true;
+                            this.dialog1 = false;
+                            this.dialog2 = true;
                         } else {
                             this.$message({
                                 showClose: true,
@@ -189,7 +211,6 @@
                 },
                 step2: function () {
                     this.fullscreenLoading = true;
-                    //this.dialog1 = false;
                     console.log("step2");
                     console.log(this.movies);
                     let api_string = [];
@@ -201,6 +222,10 @@
                         api_string = "/api/recommend_svd";
                         // console.log(api_string);
                     }
+                    // axios.post(this.baseurl + "/api/recommend", {
+                    //     is_svd: this.is_svd,
+                    //     movies: this.movies
+                    // }).then((res) => {
                     axios.post(this.baseurl + api_string, this.movies).then((res) => {
                         this.fullscreenLoading = false;
                         console.log(res.data);
@@ -216,7 +241,7 @@
                         // console.log(typeof movies);
                         this.recommended = eval("(" + res.data['movies'] + ")");
                         if (this.recommended.length > 0) {
-                            this.dialog1 = false;
+                            this.dialog2 = false;
                         } else {
                             this.$message({
                                 showClose: true,
@@ -236,6 +261,7 @@
                     var uid = parseInt(this.user_id);
                     this.recommended.splice(this.recommended.findIndex(item => item.movie_id === movie.movie_id), 1);
                     // here uid will be send back to back-end
+                    //axios.get(this.baseurl + '/api/add_recommend/' + movie.movie_id + '?is_svd=' + this.is_svd).then((res) => {
                     axios.get(this.baseurl + '/api/add_recommend/' + movie.movie_id + '&' + uid).then((res) => {
                         this.fullscreenLoading = false;
                         console.log(res.data);
@@ -258,7 +284,7 @@
                     // })
                 },
                 evaluate_btn: function () {
-                    console.log("evaluation1");
+                    // console.log("evaluation1");
                     console.log(this.user_id);
                     console.log(this.evaluation);
                     // add user_id
@@ -268,22 +294,23 @@
                     let api_string = [];
                     if (this.radio1 == '1') {
                         api_string = "/api/evaluation_knn";
-                        // console.log(api_string);
                     } else if (this.radio1 == '2') {
                         api_string = "/api/evaluation_svd";
-                        // console.log(api_string);
                     }
+                    // axios.post(this.baseurl + "/api/evaluation", {
+                    //     is_svd: this.is_svd,
+                    //     evaluation: this.evaluation
+                    // }).then((res) => {
                     axios.post(this.baseurl + api_string, this.evaluation).then((res) => {
-                        console.log("evaluation2");
-                        this.compare_show = false;
+                        //console.log("evaluation2");
                         // console.log(res);
                     });
                 },
                 compare_btn: function () {
-                    console.log("compare1");
+                    // console.log("compare1");
                     axios.post(this.baseurl + "/api/compare").then((res) => {
-                        console.log("compare2");
-                        // console.log(res);
+                        //console.log("compare2");
+                        //console.log(res);
                     });
                 }
             },
