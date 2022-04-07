@@ -9,38 +9,40 @@
         body {
             margin: 0;
         }
-
-        .transition-box {
-            margin-bottom: 10px;
-            width: 200px;
-            height: 100px;
-            border-radius: 4px;
-            background-color: #409EFF;
-            text-align: center;
-            color: #fff;
-            padding: 40px 20px;
-            box-sizing: border-box;
-            margin-right: 20px;
-        }
     </style>
 </head>
 <div id="app">
     <el-menu mode="horizontal" default-active="1" background-color="#545c64" text-color="#fff"
         active-text-color="#ffd04b">
         <el-menu-item index="1">Movie Recommendation System</el-menu-item>
+        <el-menu-item index="2" style="position:absolute;top:0px;right:20px" disabled>
+            Your ID is <el-link type="primary" href="/">{{ user_id }}</el-link>
+        </el-menu-item>
     </el-menu>
     <el-container style="margin: 10px;">
         <el-main>
             <!-- Evaluate button & 文字提示 and it will send back user_id -->
-            <el-tooltip class="item" effect="dark" content="You need to click 5 movie and you can evaluate."
-                placement="bottom-end" :disabled="false">
-                <span style="position:absolute;top:90px;right:40px">
-                    <el-button size="medium" type="primary" plain :disabled="evaluation_show" @click="evaluate_btn()"
-                        round>
-                        <i class="el-icon-s-data el-icon--left"></i>Evaluate
-                    </el-button>
-                </span>
-            </el-tooltip>
+
+            <span style="position:absolute;top:90px;right:40px">
+                <el-tooltip class="item" effect="dark" content="You need to click 5 movie and you can evaluate."
+                    placement="bottom-end" :disabled="false">
+                    <span>
+                        <el-button style="margin-right: 15px;" size="medium" type="primary" plain
+                            :disabled="evaluation_show" @click="evaluate_btn()" round>
+                            <i class="el-icon-s-data el-icon--left"></i>Evaluate
+                        </el-button>
+                    </span>
+                </el-tooltip>
+                <el-tooltip class="item" effect="dark" content="You need to finish evaluation first."
+                    placement="bottom-end" :disabled="false">
+                    <span>
+                        <el-button size="medium" type="primary" plain :disabled="compare_show" @click="compare_btn()"
+                            round>
+                            <i class="el-icon-document-copy el-icon--left"></i>Compare
+                        </el-button>
+                    </span>
+                </el-tooltip>
+            </span>
 
             <h1>Recommended List</h1>
             <h4>You can hover on the poster to see the reason why we recommend this movie to you.</h4>
@@ -71,7 +73,7 @@
                                 @click="disliked_btn(o)">
                                 <i class="el-icon-close el-icon--left"></i>Dislike
                             </el-button>
-                            <el-button size="small" type="danger" plain style="position:absolute;bottom:10px;right:10px"
+                            <el-button v-loading.fullscreen.lock="fullscreenLoading" size="small" type="danger" plain style="position:absolute;bottom:10px;right:10px"
                                 @click="liked_btn(o)">
                                 <i class="el-icon-check el-icon--left"></i> Like
                             </el-button>
@@ -129,8 +131,8 @@
                     </el-col>
                 </el-row>
                 <span slot="footer" class="dialog-footer">
-                    <el-button type="danger" size="medium" @click="step2" plain :disabled="step2_show"
-                        style="width:128px" round>
+                    <el-button v-loading.fullscreen.lock="fullscreenLoading" type="danger" size="medium" @click="step2"
+                        plain :disabled="step2_show" style="width:128px" round>
                         Next<i class="el-icon-right el-icon--right"></i>
                     </el-button>
                 </span>
@@ -162,8 +164,10 @@
                     dialog0: true,
                     dialog1: false,
                     radio1: '1',
-                    show2: true,
-                    user_id: '1',
+                    user_id: '',
+                    based_movies: [],
+                    compare_show: true,
+                    fullscreenLoading: false,
                 }
             },
             methods: {
@@ -184,23 +188,33 @@
                     })
                 },
                 step2: function () {
+                    this.fullscreenLoading = true;
                     //this.dialog1 = false;
                     console.log("step2");
                     console.log(this.movies);
                     let api_string = [];
                     // recommendation selection
                     if (this.radio1 == '1') {
-                        api_string = "/api/recommend";
+                        api_string = "/api/recommend_knn";
                         // console.log(api_string);
                     } else if (this.radio1 == '2') {
-                        api_string = "/api/recommend2";
+                        api_string = "/api/recommend_svd";
                         // console.log(api_string);
                     }
                     axios.post(this.baseurl + api_string, this.movies).then((res) => {
-                        console.log("recommended");
+                        this.fullscreenLoading = false;
                         console.log(res.data);
                         this.recommended = res.data;
                         // console.log(this.recommended)
+                        console.log(typeof res.data);
+                        this.user_id = res.data['user_id'];
+                        // this.based_movies = res.data['based_movies'];
+                        // console.log(this.based_movies);
+
+                        var movies = res.data['movies'];
+                        movies = eval("(" + movies + ")");
+                        // console.log(typeof movies);
+                        this.recommended = eval("(" + res.data['movies'] + ")");
                         if (this.recommended.length > 0) {
                             this.dialog1 = false;
                         } else {
@@ -212,6 +226,7 @@
                     });
                 },
                 liked_btn: function (movie) {
+                    this.fullscreenLoading = true;
                     movie.ground_truth = 5;
                     console.log("rate " + movie.movie_id + " with " + movie.ground_truth);
                     this.evaluation.push(movie);
@@ -222,6 +237,7 @@
                     this.recommended.splice(this.recommended.findIndex(item => item.movie_id === movie.movie_id), 1);
                     // here uid will be send back to back-end
                     axios.get(this.baseurl + '/api/add_recommend/' + movie.movie_id + '&' + uid).then((res) => {
+                        this.fullscreenLoading = false;
                         console.log(res.data);
                         that.recommended.push.apply(that.recommended, res.data);
                         that.liked.push.apply(that.liked, res.data);
@@ -249,8 +265,24 @@
                     this.evaluation.forEach(element => {
                         element.user_id = this.user_id;
                     });
-                    axios.post(this.baseurl + "/api/evaluation", this.evaluation).then((res) => {
+                    let api_string = [];
+                    if (this.radio1 == '1') {
+                        api_string = "/api/evaluation_knn";
+                        // console.log(api_string);
+                    } else if (this.radio1 == '2') {
+                        api_string = "/api/evaluation_svd";
+                        // console.log(api_string);
+                    }
+                    axios.post(this.baseurl + api_string, this.evaluation).then((res) => {
                         console.log("evaluation2");
+                        this.compare_show = false;
+                        // console.log(res);
+                    });
+                },
+                compare_btn: function () {
+                    console.log("compare1");
+                    axios.post(this.baseurl + "/api/compare").then((res) => {
+                        console.log("compare2");
                         // console.log(res);
                     });
                 }
