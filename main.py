@@ -167,16 +167,17 @@ async def run_eval(movies:list):
 async def run_comp():
     data = pd.read_csv('rmse_knn.csv', index_col=None)
     data_array = np.array(data)
-    data_list_knn = data_array.tolist()
+    list_knn = data_array.tolist()
     # print(data_list_knn)
     data = pd.read_csv('rmse_svd.csv', index_col=None)
     data_array = np.array(data)
-    data_list_svd = data_array.tolist()
+    list_svd = data_array.tolist()
     # print(data_list_svd)
-    print(ttest_ind(data_list_knn, data_list_svd))
-    pvalue = ttest_ind(data_list_knn, data_list_svd).pvalue
+    print(ttest_ind(list_knn, list_svd))
+    pvalue = ttest_ind(list_knn, list_svd).pvalue.tolist()
     print("pvalue: ", pvalue)
-    # return json.loads(pvalue.to_json(orient="records"))
+    results = {'pvalue': pvalue}
+    return results
 
 def user_add(new_user_ratings, is_reset=False):
     # simulate adding a new user into the original data file

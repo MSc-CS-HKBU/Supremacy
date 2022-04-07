@@ -37,7 +37,7 @@
                     placement="bottom-end" :disabled="false">
                     <span>
                         <el-button size="medium" type="primary" plain @click="compare_btn()"
-                            round>
+                        round>
                             <i class="el-icon-document-copy el-icon--left"></i>Compare
                         </el-button>
                     </span>
@@ -74,7 +74,7 @@
                                 <i class="el-icon-close el-icon--left"></i>Dislike
                             </el-button>
                             <el-button v-loading.fullscreen.lock="fullscreenLoading" size="small" type="danger" plain style="position:absolute;bottom:10px;right:10px"
-                                @click="liked_btn(o)">
+                            @click="liked_btn(o)">
                                 <i class="el-icon-check el-icon--left"></i> Like
                             </el-button>
                         </el-card>
@@ -100,14 +100,14 @@
                     <strong>Please Choose the Recommendation Method you want.</strong>
                     <el-divider><i class="el-icon-mobile-phone"></i></el-divider>
                 </div>
-                
+
                 <div>
                     <el-radio v-model="radio1" label='1'>Centered Item-based KNN</el-radio>
                     <el-radio v-model="radio1" label='2'>SVD</el-radio>
                 </div>
                 <span slot="footer" class="dialog-footer">
                     <el-button type="danger" size="medium" @click="step0" plain
-                        style="min-width:128px" round>
+                    style="min-width:128px" round>
                         Next<i class="el-icon-right el-icon--right"></i>
                     </el-button>
                 </span>
@@ -211,8 +211,8 @@
                 },
                 step2: function () {
                     this.fullscreenLoading = true;
-                    console.log("step2");
-                    console.log(this.movies);
+                    // console.log("step2");
+                    // console.log(this.movies);
                     let api_string = [];
                     // recommendation selection
                     if (this.radio1 == '1') {
@@ -228,10 +228,10 @@
                     // }).then((res) => {
                     axios.post(this.baseurl + api_string, this.movies).then((res) => {
                         this.fullscreenLoading = false;
-                        console.log(res.data);
+                        // console.log(res.data);
                         this.recommended = res.data;
                         // console.log(this.recommended)
-                        console.log(typeof res.data);
+                        // console.log(typeof res.data);
                         this.user_id = res.data['user_id'];
                         // this.based_movies = res.data['based_movies'];
                         // console.log(this.based_movies);
@@ -264,7 +264,7 @@
                     //axios.get(this.baseurl + '/api/add_recommend/' + movie.movie_id + '?is_svd=' + this.is_svd).then((res) => {
                     axios.get(this.baseurl + '/api/add_recommend/' + movie.movie_id + '&' + uid).then((res) => {
                         this.fullscreenLoading = false;
-                        console.log(res.data);
+                        // console.log(res.data);
                         that.recommended.push.apply(that.recommended, res.data);
                         that.liked.push.apply(that.liked, res.data);
                     })
@@ -284,7 +284,6 @@
                     // })
                 },
                 evaluate_btn: function () {
-                    // console.log("evaluation1");
                     console.log(this.user_id);
                     console.log(this.evaluation);
                     // add user_id
@@ -302,15 +301,24 @@
                     //     evaluation: this.evaluation
                     // }).then((res) => {
                     axios.post(this.baseurl + api_string, this.evaluation).then((res) => {
-                        //console.log("evaluation2");
                         // console.log(res);
                     });
                 },
                 compare_btn: function () {
-                    // console.log("compare1");
                     axios.post(this.baseurl + "/api/compare").then((res) => {
-                        //console.log("compare2");
-                        //console.log(res);
+                        let message = '<p><strong>Our command is ttest_ind(list_knn, list_svd)</strong></p><p><strong>pvalue is '
+                            + Math.floor(res.data.pvalue * 10000) / 10000 ;
+                        if (res.data.pvalue < 0.05) {
+                            message = message + '</strong> < 0.05<br>which means svd is significantly better than center item-based knn</p>';
+                        } else {
+                            message = message + '</strong> > 0.05<br>which means there are no significantly difference between in these two methods.</p>';
+                        }
+                        console.log(res.data.pvalue);
+                        // pop out message box, message will show in html format
+                        this.$alert(message, 'Two-Sample t-Test Result', {
+                            confirmButtonText: '确定',
+                            dangerouslyUseHTMLString: true,
+                        });
                     });
                 }
             },
