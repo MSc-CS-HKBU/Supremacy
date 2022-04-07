@@ -64,7 +64,7 @@ def get_genre():
                       "Romance", "Sci_Fi", "Thriller", "War", "Western"]}
 '''
 # == == == == == == == == == KNN with Means == == == == == == == == == == =
-@app.post("/api/movies_knn")
+@app.post("/api/movies")
 def get_movies(genre: list):
     print(genre)
     query_str = " or ".join(map(map_genre, genre))
@@ -81,6 +81,7 @@ def get_recommend(movies: List[Movie]):
     score = int(sorted(movies, key=lambda i: i.score, reverse=True)[0].score)
     new_user_ratings = [(str(i.movie_id), int(i.score)) for i in movies]
     uid, res = get_initial_items(new_user_ratings)
+    # res是列表
     res_id = []
     for i in res:
         res_id.append(int(i[0]))
@@ -90,8 +91,8 @@ def get_recommend(movies: List[Movie]):
     rec_movies = data.loc[data['movie_id'].isin(res_id)]
     rec_temp = pd.DataFrame(rec_movies)
     rec_temp.loc[:, 'like'] = None
-    rec_temp.loc[:, 'ground_truth'] = 0
-    rec_temp.loc[:, 'pred'] = 0
+    rec_temp.loc[:, 'ground_truth'] = None
+    rec_temp.loc[:, 'pred'] = None
     for i in range(12):
         rec_movies.iloc[i, 27] = res[i][1]
     movies = rec_movies.loc[:, [
@@ -100,15 +101,21 @@ def get_recommend(movies: List[Movie]):
     return json.loads(json.dumps(results))
 
 
-@app.get("/api/add_recommend_knn/{item_id}")
-async def add_recommend(item_id):
-    res = get_similar_items_knn(str(item_id), n=5)
-    res = [int(i) for i in res]
-    similar_movies = data.loc[data['movie_id'].isin(res)]
+@app.get("/api/add_recommend/{item_id}&{uid}")
+async def add_recommend(item_id, uid):
+    res = get_similar_items_knn(uid, str(item_id), n=5)
+    # res是字典
+    res_id = []
+    for key in res:
+        res_id.append(int(key))
+    # res = [int(i) for i in res]
+    similar_movies = data.loc[data['movie_id'].isin(res_id)]
     rec_temp = pd.DataFrame(similar_movies)
     rec_temp.loc[:, 'like'] = None
-    rec_temp.loc[:, 'ground_truth'] = 0
-    rec_temp.loc[:, 'pred'] = 5
+    rec_temp.loc[:, 'ground_truth'] = None
+    rec_temp.loc[:, 'pred'] = None
+    for i, key in zip(range(5), res):
+        similar_movies.iloc[i, 27] = res[key]
     results = similar_movies.loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'like','ground_truth','pred']]
     return json.loads(results.to_json(orient="records"))
 
@@ -123,7 +130,7 @@ async def run_eval(movies:list):
         print(predictions[i][2])
         ratings.append(predictions[i][2])
     avg_rating = np.mean(ratings)
-    print(avg_rating)
+    print('avg', avg_rating)
     accuracy.rmse(predictions, verbose=True)
 
 
@@ -165,69 +172,25 @@ def get_initial_items(new_user_ratings, n=12):
         if pred >= 5:
             all_results[iid] = pred
     for key in all_results:
-        random_rec = random.sample(all_results.items(), 12)
+        random_rec = random.sample(all_results.items(), n)
 
     return uid, random_rec
 
 
-def get_similar_items_knn(iid, n=12):
+def get_similar_items_knn(uid, iid, n):
     algo = dump.load('./model')[1]
     print("iid", iid)
     inner_id = algo.trainset.to_inner_iid(iid)
     neighbors = algo.get_neighbors(inner_id, k=n)
     neighbors_iid = [algo.trainset.to_raw_iid(x) for x in neighbors]
+    rec_similar = {}
+    for i in neighbors_iid:
+        pred = algo.predict(uid, iid).est
+        rec_similar[i] = pred
     print("neighbors_iid", neighbors_iid)
-    return neighbors_iid
-
-# == == == == == == == == == SVD == == == == == == == == == == =
-# @app.post("/api/movies_svd")
-# def get_movies(genre: list):
-#     print(genre)
-#     query_str = " or ".join(map(lambda x: ''+x+'==1', genre))
-#     results = data.query(query_str)
-#     # results.loc[:, 'score'] = None
-#     res_temp = pd.DataFrame(results)
-#     res_temp.loc[:, 'score'] = None
-#     results = results.sample(
-#         18).loc[:, ['movie_id', 'movie_title', 'release_date', 'poster_url', 'score']]
-#     return json.loads(results.to_json(orient="records"))
+    return rec_similar
 
 
-# @app.post("/api/recommend_svd")
-# def get_recommend(movies: List[Movie]):
-#     # print(movies)
-#     # iid = str(sorted(movies, key=lambda i: i.score, reverse=True)[0].movie_id)
-#     # score = int(sorted(movies, key=lambda i: i.score, reverse=True)[0].score)
-#     new_user_ratings = [(str(i.movie_id), int(i.score)) for i in movies]
-#     uid, res = get_recommend_items_by_svd(new_user_ratings)
-#     res = [int(i) for i in res]
-#     if len(res) > 12:
-#         res = res[:12]
-#     print(res)
-#     rec_movies = data.loc[data['movie_id'].isin(res)]
-#     # print(rec_movies)
-#     # rec_movies.loc[:, 'like'] = None
-#     rec_temp = pd.DataFrame(rec_movies)
-#     rec_temp.loc[:, 'like'] = None
-#     movies = rec_movies.loc[:, [
-#         'movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
-#     results = {'user_id': uid, 'movies': movies.to_json(orient="records")}
-#     return json.loads(json.dumps(results))
-
-
-# @app.get("/api/add_recommend_svd/{item_id}")
-# async def add_recommend(item_id):
-#     res = get_similar_items_by_svd(str(item_id), n=5)
-#     res = [int(i) for i in res]
-#     # print(res)
-#     similar_movies = data.loc[data['movie_id'].isin(res)]
-#     # print(rec_movies)
-#     # rec_movies.loc[:, 'like'] = None
-#     rec_temp = pd.DataFrame(similar_movies)
-#     rec_temp.loc[:, 'like'] = None
-#     results = similar_movies.loc[:, [
-#         'movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
-#     return json.loads(results.to_json(orient="records"))
 
     
 
