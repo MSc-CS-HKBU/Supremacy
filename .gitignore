@@ -1,6 +1,6 @@
 # Dependency directories
 venv/
 __pycache__/
-model
+*.model
 new_*
-pred_*
+*_rmse.csv

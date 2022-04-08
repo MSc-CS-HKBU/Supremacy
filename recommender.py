@@ -18,22 +18,16 @@ def get_recommend_items_by_knn(new_user_ratings, n=12):
 
     # algo = KNNBasic(sim_options={'name': 'pearson', 'user_based': False})
     algo = KNNWithMeans(k=60, sim_options={
-                        'name': 'pearson', 'user_based': False})
+                        'name': 'cosine', 'user_based': False})
     algo.fit(trainset)
-    dump.dump('./model', algo=algo, verbose=1)
+    dump.dump('./rec.model', algo=algo, verbose=1)
     all_results = {}
-    if not os.path.exists('pred_ratings.csv'):
-        with open('pred_ratings.csv', mode='a', newline='', encoding='utf8') as cf:
-            cf.truncate()
-    with open(r'pred_ratings.csv', mode='a', newline='', encoding='utf8') as cfa:
-        wf = csv.writer(cfa, delimiter='\t')
-        for i in item_rid_list:
-            uid = str(uid)
-            iid = str(i)
-            pred = algo.predict(uid, iid).est
-            if pred >= 5:
-                all_results[iid] = pred
-            wf.writerow([uid, iid, pred])
+    for i in item_rid_list:
+        uid = str(uid)
+        iid = str(i)
+        pred = algo.predict(uid, iid).est
+        if pred >= 5:
+            all_results[iid] = pred
     for key in all_results:
         random_rec = random.sample(all_results.items(), 12)
     for i in random_rec:
@@ -49,21 +43,21 @@ def get_recommend_items_by_svd(new_user_ratings, n=12):
                      for inner_id in trainset.ir.keys()]
     print(f'number of total users: {trainset.n_users}')
     # optimal parameters from Jupyter Notebook
-    algo = SVD(n_factors=20, n_epochs=30, biased=False)
-    algo.fit(trainset)
-    dump.dump('./model', algo=algo, verbose=1)
+    svd_algo = SVD(n_factors=20, n_epochs=30, biased=False)
+    svd_algo.fit(trainset)
+    dump.dump('./rec.model', algo=svd_algo, verbose=1)
+    knn_algo = KNNWithMeans(k=60, sim_options={     # optimal parameters from Jupyter Notebook
+        'name': 'cosine',
+        'user_based': False
+    })
+    knn_algo.fit(trainset)
+    dump.dump('./sim.model', algo=knn_algo, verbose=1)
     all_results = {}
-    if not os.path.exists('pred_ratings.csv'):
-        with open('pred_ratings.csv', mode='a', newline='', encoding='utf8') as cf:
-            cf.truncate()
-    with open(r'pred_ratings.csv', mode='a', newline='', encoding='utf8') as cfa:
-        wf = csv.writer(cfa, delimiter='\t')
-        for i in item_rid_list:
-            uid = str(uid)
-            iid = str(i)
-            pred = round(algo.predict(uid, iid).est, 4)
-            all_results[iid] = pred
-            wf.writerow([uid, iid, pred])
+    for i in item_rid_list:
+        uid = str(uid)
+        iid = str(i)
+        pred = round(svd_algo.predict(uid, iid).est, 4)
+        all_results[iid] = pred
     sorted_list = sorted(all_results.items(),
                          key=lambda kv: (kv[1], kv[0]), reverse=True)
     for i in sorted_list[:n]:
@@ -72,32 +66,37 @@ def get_recommend_items_by_svd(new_user_ratings, n=12):
 
 
 def get_similar_items_by_knn(iid, n=12):
-    algo = dump.load('./model')[1]
-    print("iid", iid)
+    algo = dump.load('./rec.model')[1]
+    uid = str(algo.trainset.n_users)
     inner_id = algo.trainset.to_inner_iid(iid)
     neighbors = algo.get_neighbors(inner_id, k=n)
     neighbors_iid = [algo.trainset.to_raw_iid(x) for x in neighbors]
     print("neighbors_iid", neighbors_iid)
-    return neighbors_iid
+    similar_items = {}
+    for i in neighbors_iid:
+        pred = round(algo.predict(uid, iid).est, 4)
+        similar_items[i] = pred
+    return similar_items
 
 
 def get_similar_items_by_svd(iid, n=12):
-    svd_algo = dump.load('./model')[1]
+    svd_algo = dump.load('./rec.model')[1]
     trainset = svd_algo.trainset
+    uid = str(trainset.n_users)
     # print(f'iis: {iid}, number of total items: {algo.trainset.n_items}')
     # Option 1: calculating k nearest neighbors by KNNWithMeans algorithm, we use it here.
-    knn_algo = KNNWithMeans(k=60, sim_options={     # optimal parameters from Jupyter Notebook
-        'name': 'cosine',
-        'user_based': False
-    })
-    knn_algo.fit(trainset)
+    knn_algo = dump.load('./sim.model')[1]
     inner_id = knn_algo.trainset.to_inner_iid(iid)
     neighbors = knn_algo.get_neighbors(inner_id, k=n)
-    neighbors_iid_list = [knn_algo.trainset.to_raw_iid(x) for x in neighbors]
+    neighbors_iid = [knn_algo.trainset.to_raw_iid(x) for x in neighbors]
     # Option 2: calculating k nearest neighbors by k_neighbors_item_based function, we don't use it because it executes too slowly.
     # neighbors_iid_list = k_neighbors_item_based(knn_algo.trainset, iid, n)
-    print("neighbors_iid", neighbors_iid_list)
-    return neighbors_iid_list
+    print("neighbors_iid", neighbors_iid)
+    similar_items = {}
+    for i in neighbors_iid:
+        pred = round(svd_algo.predict(uid, iid).est, 4)
+        similar_items[i] = pred
+    return similar_items
 
 
 def user_add(new_user_ratings, is_reset=False):

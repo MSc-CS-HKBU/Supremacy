@@ -1,12 +1,14 @@
-from typing import Any, Optional, List, Dict
+from typing import List, Optional, Dict
 from xmlrpc.client import boolean
 from pydantic import BaseModel
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from scipy.stats import ttest_ind
 import pandas as pd
 import uvicorn
 import json
 from recommender import get_recommend_items_by_knn, get_similar_items_by_knn, get_recommend_items_by_svd, get_similar_items_by_svd
+from evaluate import get_evaluate, rm_file
 
 app = FastAPI()
 app.add_middleware(
@@ -30,7 +32,11 @@ class Movie(BaseModel):
     movie_id: int
     movie_title: str
     release_date: str
-    score: int
+    score: Optional[int]
+    like: Optional[int]
+    ground_truth: Optional[int]
+    predict: Optional[float]
+    user_id: Optional[int]
 
 
 class Recommend(BaseModel):
@@ -79,12 +85,13 @@ def get_recommend(recommend: Recommend):
     # score = int(sorted(movies, key=lambda i: i.score, reverse=True)[0].score)
     new_user_ratings = [(str(i.movie_id), int(i.score)) for i in movies]
     if is_svd:
-        # print('Using SVD gets recommended items:')
+        print('Using SVD gets recommended items:')
         uid, based_iid_list, rec_list = get_recommend_items_by_svd(
             new_user_ratings)
     else:
-        # print('Using KNN gets recommended items:')
-        uid, based_iid_list, rec_list = get_recommend_items_by_knn(new_user_ratings)
+        print('Using KNN gets recommended items:')
+        uid, based_iid_list, rec_list = get_recommend_items_by_knn(
+            new_user_ratings)
     rec_iid_list = [int(i) for i, _ in rec_list]
     if len(rec_iid_list) > 12:
         rec_iid_list = rec_iid_list[:12]
@@ -95,13 +102,13 @@ def get_recommend(recommend: Recommend):
     # print(rec_movies)
     # rec_movies.loc[:, 'like'] = None
     rec_temp = pd.DataFrame(rec_movies)
-    rec_temp.loc[:, 'predicted'] = None
+    rec_temp.loc[:, 'predict'] = None
     rec_temp.loc[:, 'ground_truth'] = None
     rec_temp.loc[:, 'like'] = None
     for iid, pred in rec_list:
-        rec_movies.loc[rec_movies['movie_id'] == int(iid), 'predicted'] = pred
+        rec_movies.loc[rec_movies['movie_id'] == int(iid), 'predict'] = pred
     movies = rec_movies.loc[:, [
-        'movie_id', 'movie_title', 'release_date', 'poster_url', 'predicted', 'ground_truth', 'like']]
+        'movie_id', 'movie_title', 'release_date', 'poster_url', 'predict', 'ground_truth', 'like']]
     results = {'user_id': uid, 'based_movies': based_movies,
                'movies': movies.to_json(orient="records")}
     return json.loads(json.dumps(results))
@@ -110,21 +117,49 @@ def get_recommend(recommend: Recommend):
 @app.get("/api/add_recommend/{item_id}")
 async def add_recommend(item_id: int, is_svd: boolean):
     if is_svd:
-        # print('Using SVD gets similar items:')
-        res = get_similar_items_by_svd(str(item_id), n=5)
+        print('Using SVD gets similar items:')
+        similar_items = get_similar_items_by_svd(str(item_id), n=5)
     else:
-        # print('Using KNN gets similar items:')
-        res = get_similar_items_by_knn(str(item_id), n=5)
-    res = [int(i) for i in res]
+        print('Using KNN gets similar items:')
+        similar_items = get_similar_items_by_knn(str(item_id), n=5)
+    similar_ids = [int(i) for i in similar_items]
     # print(res)
-    similar_movies = movie_info.loc[movie_info['movie_id'].isin(res)]
+    similar_movies = movie_info.loc[movie_info['movie_id'].isin(similar_ids)]
     # print(rec_movies)
     # rec_movies.loc[:, 'like'] = None
     rec_temp = pd.DataFrame(similar_movies)
     rec_temp.loc[:, 'like'] = None
+    rec_temp.loc[:, 'ground_truth'] = None
+    rec_temp.loc[:, 'predict'] = None
+    for iid in similar_items:
+        similar_movies.loc[similar_movies['movie_id']
+                           == int(iid), 'predict'] = similar_items[iid]
     results = similar_movies.loc[:, [
-        'movie_id', 'movie_title', 'release_date', 'poster_url', 'like']]
+        'movie_id', 'movie_title', 'release_date', 'poster_url', 'like', 'ground_truth', 'predict']]
     return json.loads(results.to_json(orient="records"))
+
+
+@app.post("/api/evaluate")
+async def evaluate(evaluation: Recommend):
+    is_svd = evaluation.is_svd
+    print(is_svd)
+    movies = evaluation.movies
+    print(movies)
+    knn_rmse, svd_rmse, avg_rating = get_evaluate(is_svd, movies)
+    return json.loads(json.dumps({'knn_rmse': knn_rmse, 'svd_rmse': svd_rmse, 'avg_rating': avg_rating}))
+
+
+@app.post("/api/compare")
+async def compare(obj: Dict[str, List] = None):
+    knn_rmse, svd_rmse = obj['knn_rmse'], obj['svd_rmse']
+    # print(knn_rmse)
+    rm_file(knn_rmse, svd_rmse)
+    if len(knn_rmse) != len(svd_rmse):
+        pvalue = -1
+    else:
+        pvalue = ttest_ind(knn_rmse, svd_rmse).pvalue
+    print(f'pvalue: {pvalue}')
+    return json.loads(json.dumps({'pvalue': pvalue}))
 
 if __name__ == '__main__':
     uvicorn.run(app, host='0.0.0.0', port=8000)

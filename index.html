@@ -21,22 +21,59 @@
     </el-menu>
     <el-container>
         <el-main>
+            <span style="position:absolute;top:90px;right:40px">
+                <el-tooltip class="item" effect="dark" content="You need to click 5 movie and you can evaluate."
+                    placement="bottom-end" :disabled="false">
+                    <span>
+                        <el-button style="margin-right: 15px;" size="medium" type="primary" plain
+                            :disabled="evaluate_show" @click="evaluate_btn()" round>
+                            <i class="el-icon-s-data el-icon--left"></i>Evaluate
+                        </el-button>
+                    </span>
+                </el-tooltip>
+                <el-tooltip class="item" effect="dark" content="You need to finish evaluation first."
+                    placement="bottom-end" :disabled="false">
+                    <span>
+                        <el-button size="medium" type="primary" plain :disabled="compare_show" @click="compare_btn()"
+                            round>
+                            <i class="el-icon-document-copy el-icon--left"></i>Compare
+                        </el-button>
+                    </span>
+                </el-tooltip>
+            </span>
             <h2>Recommended</h2>
 
-            <el-row :gutter="20">
-                <el-col :span="4" v-for="o in recommended" :key="o.movie_id" :offset="0">
-                    <el-card :body-style="{ padding: '0px' }"
-                        style="margin-top:15px;height:400px;overflow:auto;position:relative">
-                        <el-image style="width: 100%;height:240px;" :src="o.poster_url" fit="cover"></el-image>
-                        <h4 style="padding:0 10px;margin:0">{{o.movie_title}}</h4>
-                        <!-- <h6 style="padding:0 10px;margin:0.5em">{{ o.release_date }}</h6> -->
-                        <h6 style="padding:0 10px;margin:0.5em">{{ o.predicted }}</h6>
-                        <el-button type="danger" plain style="position:absolute;bottom:10px;right:10px"
-                            @click="liked_btn(o)">
-                            <i class="el-icon-medal el-icon--left"></i>Like
-                        </el-button>
-                    </el-card>
-                </el-col>
+            <el-row :gutter="30">
+                <div class="grid-content bg-purple-light">
+                    <el-col :span="4" v-for="(o, index) in recommended" :key="index" :offset="0"
+                        style="border-radius: 4px;">
+                        <el-card :body-style="{ padding: '0px' }" shadow="hover"
+                            style="margin-top:15px;margin-bottom:10px;height:420px;overflow:auto;position:relative">
+                            <el-popover placement="top-start" title="We recommend this movie" width="250" height="500"
+                                trigger="hover">
+                                <p>based on your intereste in: {{based_movies[0]}} and {{based_movies[1]}}</p>
+                                <p>Our prediction:</p>
+                                <el-rate v-model="o.predict" disabled show-score text-color="#ff9900">
+                                </el-rate>
+
+                                <el-image slot="reference" style="width: 100%;height:300px;" :src="o.poster_url"
+                                    fit="cover"></el-image>
+                            </el-popover>
+                            <h4 style="padding:0 10px;margin:0">{{o.movie_title}}</h4>
+                            <!-- <h5 style="padding:0 10px;margin:0.5em">{{ o.release_date }}</h5> -->
+                            <!-- <h5 style="padding:0 10px;margin:0.5em">Average Score: {{ o.movie_id }}</h5> -->
+                            <!-- Two button (dislike and like) -->
+                            <el-button size="small" type="info" plain style="position:absolute;bottom:10px;left:10px"
+                                @click="disliked_btn(o)">
+                                <i class="el-icon-close el-icon--left"></i>Dislike
+                            </el-button>
+                            <el-button v-loading.fullscreen.lock="fullscreenLoading" size="small" type="danger" plain
+                                style="position:absolute;bottom:10px;right:10px" @click="liked_btn(o)">
+                                <i class="el-icon-check el-icon--left"></i> Like
+                            </el-button>
+                        </el-card>
+                    </el-col>
+                </div>
             </el-row>
             <h2>Liked with Similar Items</h2>
 
@@ -50,21 +87,42 @@
                     </el-card>
                 </el-col>
             </el-row>
-            <!--  Dialog0-->
-            <el-dialog title="Please choose any genre you're interested in." :visible="dialog0" width="60%"
-                :show-close="false">
-                <span>Multiple answers are possible.</span>
-                <el-checkbox-group v-model="selected_genre" style="margin-top:20px">
-                    <el-checkbox :label=item border v-for="(item, index) in genre" :key="index"
-                        style="margin-top:20px; margin-left: 0px"></el-checkbox>
-                </el-checkbox-group>
+            <!--  Dialog0 -->
+            <el-dialog :visible="dialog0" width="50%" :show-close="false">
+                <div slot="title" class="header-title" style="color: black;font-size: x-large;">
+                    <strong>Please Choose the Recommendation Method you want.</strong>
+                    <el-divider><i class="el-icon-mobile-phone"></i></el-divider>
+                </div>
+
+                <div style="position: absolute;right: 40%;">
+                    <el-radio v-model="is_svd" :label="false">Centered Item-based KNN</el-radio>
+                    <el-radio v-model="is_svd" :label="true">SVD</el-radio>
+                </div>
                 <span slot="footer" class="dialog-footer">
-                    <el-button type="danger" @click="step1" plain :disabled="step1_show" style="min-width:128px">Next
+                    <el-button type="danger" size="medium" @click="step0" plain style="min-width:128px" round>
+                        Next<i class="el-icon-right el-icon--right"></i>
                     </el-button>
                 </span>
             </el-dialog>
             <!--  Dialog1-->
-            <el-dialog title="Please rate the following at least 10 movies." :visible="dialog1" width="80%"
+            <el-dialog :visible="dialog1" width="55%" :show-close="false">
+                <div slot="title" class="header-title" style="color: black;font-size: x-large;">
+                    <strong>Please Finish the Following Selection.</strong>
+                </div>
+                <span style="font-size: large;">Choose at least one genre you're interested in.</span>
+                <el-checkbox-group v-model="selected_genre" style="margin-top:10px">
+                    <el-checkbox :label=item v-for="(item, index) in genre" :key="index"
+                        style="margin-top:20px; margin-left: 0px"></el-checkbox>
+                </el-checkbox-group>
+                <span slot="footer" class="dialog-footer">
+                    <el-button type="danger" size="medium" @click="step1" plain :disabled="step1_show"
+                        style="min-width:128px" round>
+                        Next<i class="el-icon-right el-icon--right"></i>
+                    </el-button>
+                </span>
+            </el-dialog>
+            <!--  Dialog2-->
+            <el-dialog title="Please rate the following at least 10 movies." :visible="dialog2" width="80%"
                 :show-close="false">
                 <el-row :gutter="20">
                     <el-col :span="4" v-for="o in movies" :key="o.movie_id" :offset="0">
@@ -76,10 +134,9 @@
                     </el-col>
                 </el-row>
                 <span slot="footer" class="dialog-footer">
-                    <el-switch v-model="is_svd" active-color="#13ce66" inactive-color="#ff4949"
-                        active-text="if on, it is using SVD algorithm.">
-                    </el-switch>
-                    <el-button type="danger" @click="step2" plain :disabled="step2_show" style="width:128px">Next
+                    <el-button v-loading.fullscreen.lock="fullscreenLoading" type="danger" size="medium" @click="step2"
+                        plain :disabled="step2_show" style="width:128px" round>
+                        Next<i class="el-icon-right el-icon--right"></i>
                     </el-button>
                 </span>
             </el-dialog>
@@ -110,23 +167,33 @@
                     based_movies: [],
                     movies: [],
                     recommended: [],
+                    evaluation: [],
+                    compare_data: {
+                        knn_rmse: [],
+                        svd_rmse: []
+                    },
                     liked: [],
                     dialog0: true,
                     dialog1: false,
-                    iconClasses: ['icon-rate-face-1', 'icon-rate-face-2', 'icon-rate-face-3'],
-                    checkboxGroup1: [],
-                    value: 2
+                    dialog2: false,
+                    fullscreenLoading: false
                 }
             },
             methods: {
+                step0: function () {
+                    // console.log(this.is_svd);
+                    this.dialog0 = false;
+                    this.dialog1 = true;
+
+                },
                 step1: function () {
                     axios.post(this.baseurl + "/api/movies", this.selected_genre).then((res) => {
                         //console.log(res);
                         this.movies = res.data;
                         console.log(typeof this.movies);
                         if (this.movies.length === 18) {
-                            this.dialog0 = false;
-                            this.dialog1 = true;
+                            this.dialog1 = false;
+                            this.dialog2 = true;
                         } else {
                             this.$message({
                                 showClose: true,
@@ -138,24 +205,19 @@
                 step2: function () {
                     //this.dialog1 = false;
                     //console.log(this.movies);
-                    // const obj = {
-                    //     'is_svd': this.is_svd,
-                    //     'movies': this.movie
-                    // };
+                    this.fullscreenLoading = true;
                     axios.post(this.baseurl + "/api/recommend", {
                         is_svd: this.is_svd,
                         movies: this.movies
                     }).then((res) => {
                         // console.log(typeof res.data);
+                        this.fullscreenLoading = false;
                         this.user_id = res.data['user_id'];
                         this.based_movies = res.data['based_movies'];
-                        console.log(this.based_movies);
-                        // var movies = res.data['movies'];
-                        // movies = eval("("+movies+")");
-                        // console.log(typeof movies);
+                        // console.log(this.based_movies);
                         this.recommended = eval("(" + res.data['movies'] + ")");
                         if (this.recommended.length > 0) {
-                            this.dialog1 = false;
+                            this.dialog2 = false;
                         } else {
                             this.$message({
                                 showClose: true,
@@ -165,16 +227,72 @@
                     });
                 },
                 liked_btn: function (movie) {
-                    // let that = this;
+                    this.fullscreenLoading = true;
+                    let that = this;
+                    movie.ground_truth = 5;
+                    this.evaluation.push(movie);
                     this.liked.splice(0, this.liked.length);
                     this.liked.push(movie);
                     this.recommended.splice(this.recommended.findIndex(item => item.movie_id === movie.movie_id), 1);
                     axios.get(this.baseurl + '/api/add_recommend/' + movie.movie_id + '?is_svd=' + this.is_svd).then((res) => {
-                        console.log(res.data);
-                        // that.recommended.push.apply(that.recommended, res.data);
-                        // that.liked.push.apply(that.liked, res.data);
+                        // console.log(res.data);
+                        this.fullscreenLoading = false;
+                        that.recommended.push.apply(that.recommended, res.data);
                         this.liked.push.apply(this.liked, res.data);
                     })
+                },
+                disliked_btn: function (movie) {
+                    movie.ground_truth = 1;
+                    this.evaluation.push(movie);
+                    this.recommended.splice(this.recommended.findIndex(item => item.movie_id === movie.movie_id), 1);
+                },
+                evaluate_btn: function () {
+                    // add user_id
+                    this.evaluation.forEach(element => {
+                        element.user_id = this.user_id;
+                    });
+                    axios.post(this.baseurl + '/api/evaluate', {
+                        is_svd: this.is_svd,
+                        movies: this.evaluation
+                    }).then((res) => {
+                        this.compare_data.knn_rmse = res.data['knn_rmse'];
+                        this.compare_data.svd_rmse = res.data['svd_rmse'];
+                        const avg_rating = res.data['avg_rating'];
+                        // console.log(this.compare_data);
+                        this.evaluation.splice(0, this.evaluation.length);
+                        let message = '<strong>average rating</strong> is ' + avg_rating;
+                        this.$alert(message, 'Average rating', {
+                            confirmButtonText: '确定',
+                            dangerouslyUseHTMLString: true,
+                        });
+                    });
+                },
+                compare_btn: function () {
+                    axios.post(this.baseurl + "/api/compare", this.compare_data).then((res) => {
+                        // console.log(res.data['pvalue']);
+                        this.compare_data.knn_rmse.splice(0, this.compare_data.knn_rmse.length);
+                        this.compare_data.svd_rmse.splice(0, this.compare_data.svd_rmse.length);
+                        const pvalue = res.data['pvalue'];
+                        let message = '';
+                        if (pvalue < 0) {
+                            message = 'Please ensure the numbers of items incuded by two methods are equal!';
+                        } else {
+                            message = '<p><strong>Our command is ttest_ind(list_knn, list_svd)</strong></p><p><strong>pvalue is '
+                                + Math.floor(pvalue * 10000) / 10000;
+                            if (pvalue < 0.05) {
+                                message += '</strong> < 0.05<br>which means svd is significantly better than center item-based knn</p>';
+                            } else {
+                                message += '</strong> > 0.05<br>which means there are no significantly difference between in these two methods.</p>';
+                            }
+                        }
+                        console.log(message);
+                        // console.log(pvalue);
+                        // pop out message box, message will show in html format
+                        this.$alert(message, 'Two-Sample t-Test Result', {
+                            confirmButtonText: '确定',
+                            dangerouslyUseHTMLString: true,
+                        });
+                    });
                 }
             },
             mounted: function () {
@@ -198,10 +316,24 @@
                         }
                     }
                     console.log(scores);
-                    if (scores >= 1) {
+                    if (scores >= 5) {
                         return false;
                     } else {
                         return true
+                    }
+                },
+                evaluate_show: function () {
+                    if (this.evaluation.length >= 5) {
+                        return false;
+                    } else {
+                        return true;
+                    }
+                },
+                compare_show: function () {
+                    if (this.compare_data.knn_rmse.length + this.compare_data.svd_rmse.length >= 4) {
+                        return false;
+                    } else {
+                        return true;
                     }
                 },
             }
