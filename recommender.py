@@ -90,7 +90,7 @@ def get_similar_items_by_svd(iid, n=12):
     neighbors = knn_algo.get_neighbors(inner_id, k=n)
     neighbors_iid = [knn_algo.trainset.to_raw_iid(x) for x in neighbors]
     # Option 2: calculating k nearest neighbors by k_neighbors_item_based function, we don't use it because it executes too slowly.
-    # neighbors_iid_list = k_neighbors_item_based(knn_algo.trainset, iid, n)
+    # neighbors_iid = k_neighbors_item_based(trainset, iid, n)
     print("neighbors_iid", neighbors_iid)
     similar_items = {}
     for i in neighbors_iid:

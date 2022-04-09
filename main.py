@@ -142,9 +142,7 @@ async def add_recommend(item_id: int, is_svd: boolean):
 @app.post("/api/evaluate")
 async def evaluate(evaluation: Recommend):
     is_svd = evaluation.is_svd
-    print(is_svd)
     movies = evaluation.movies
-    print(movies)
     knn_rmse, svd_rmse, avg_rating = get_evaluate(is_svd, movies)
     return json.loads(json.dumps({'knn_rmse': knn_rmse, 'svd_rmse': svd_rmse, 'avg_rating': avg_rating}))
 
